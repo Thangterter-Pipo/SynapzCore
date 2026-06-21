@@ -122,20 +122,25 @@ function cdpCommand(wsUrl, method, params = {}) {
   return new Promise((resolve, reject) => {
     // Dynamic import for WebSocket
     const WebSocket = require('ws');
-    const ws = new WebSocket(wsUrl);
-    const id = Date.now();
+    const ws = new WebSocket(wsUrl, {
+      handshakeTimeout: 5000,
+      perMessageDeflate: false,
+    });
+    const id = 1;
     
     ws.on('open', () => {
       ws.send(JSON.stringify({ id, method, params }));
     });
     
     ws.on('message', (data) => {
-      const msg = JSON.parse(data.toString());
-      if (msg.id === id) {
-        ws.close();
-        if (msg.error) reject(new Error(JSON.stringify(msg.error)));
-        else resolve(msg.result);
-      }
+      try {
+        const msg = JSON.parse(data.toString());
+        if (msg.id === id) {
+          ws.close();
+          if (msg.error) reject(new Error(JSON.stringify(msg.error)));
+          else resolve(msg.result);
+        }
+      } catch (e) {}
     });
     
     ws.on('error', reject);
@@ -143,34 +148,35 @@ function cdpCommand(wsUrl, method, params = {}) {
   });
 }
 
+async function getBrowserCdpUrl() {
+  const resp = await httpReq('GET', `http://127.0.0.1:${CONFIG.CDP_PORT}/json/version`);
+  if (resp.status !== 200) throw new Error(`CDP /json/version failed: ${resp.status}`);
+  return resp.data.webSocketDebuggerUrl;
+}
+
 /**
  * Extract cookies from a CDP target for grok.com domain
  */
 async function extractCookiesViaCdp() {
-  log('🔌', `Connecting to Edge CDP on port ${CONFIG.CDP_PORT}...`);
+  log('🔌', `Connecting to Edge Browser CDP on port ${CONFIG.CDP_PORT}...`);
   
-  const targets = await getCdpTargets();
-  log('📋', `Found ${targets.length} browser target(s)`);
-  
-  // Find a page target (prefer grok.com if open)
-  let target = targets.find(t => t.url && t.url.includes('grok.com'));
-  if (!target) {
-    target = targets.find(t => t.type === 'page' && t.webSocketDebuggerUrl);
+  const browserWsUrl = await getBrowserCdpUrl();
+  if (!browserWsUrl) {
+    throw new Error('No browser WebSocket URL found. Is Edge running with --remote-debugging-port?');
   }
   
-  if (!target || !target.webSocketDebuggerUrl) {
-    throw new Error('No suitable CDP target found. Is Edge running with --remote-debugging-port?');
-  }
+  log('🎯', `Using browser WebSocket: ${browserWsUrl}`);
   
-  log('🎯', `Using target: "${target.title}" (${target.url})`);
+  // Get all cookies from the browser context
+  const result = await cdpCommand(browserWsUrl, 'Storage.getCookies', {});
+  const allCookies = result.cookies || [];
   
-  // Get all cookies for grok.com
-  const result = await cdpCommand(target.webSocketDebuggerUrl, 'Network.getCookies', {
-    urls: ['https://grok.com', 'https://www.grok.com']
-  });
+  // Filter grok.com and x.ai cookies
+  const cookies = allCookies.filter(c => 
+    c.domain && (c.domain.includes('grok.com') || c.domain.includes('x.ai'))
+  );
   
-  const cookies = result.cookies || [];
-  log('🍪', `Retrieved ${cookies.length} cookies from grok.com`);
+  log('🍪', `Retrieved ${cookies.length} cookies for grok.com/x.ai out of ${allCookies.length} total browser cookies`);
   
   return cookies;
 }
