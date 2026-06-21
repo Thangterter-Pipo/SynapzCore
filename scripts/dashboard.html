@@ -1639,6 +1639,24 @@
             const loadBubble = appendChatBubble('bot loading-bubble', '<span>🦉 Grok đang suy nghĩ...</span>');
 
             try {
+                // 1. Dynamic Model Discovery
+                let modelId = 'grok-4';
+                try {
+                    const mResp = await fetch(`${GROK_URL}/v1/models`, {
+                        headers: { 'Authorization': 'Bearer grok2api' }
+                    });
+                    if (mResp.ok) {
+                        const mData = await mResp.json();
+                        if (mData.data && mData.data.length > 0) {
+                            // Find the first available non-image model
+                            const model = mData.data.find(m => !m.id.includes('imagine')) || mData.data[0];
+                            modelId = model.id;
+                        }
+                    }
+                } catch (e) {
+                    console.warn('Failed to auto-discover model, fallback to grok-4:', e.message);
+                }
+
                 // Construct messages payload for OpenAI-compatible endpoint
                 const messages = [
                     { role: 'system', content: 'You are Grok "Gravity", a highly intelligent researcher and coding assistant. Speak Vietnamese naturally.' },
@@ -1653,13 +1671,18 @@
                         'Authorization': 'Bearer grok2api'
                     },
                     body: JSON.stringify({
-                        model: 'grok-4',
+                        model: modelId,
                         messages,
                         stream: false
                     })
                 });
 
-                if (!resp.ok) throw new Error('API Gateway error or offline');
+                if (!resp.ok) {
+                    const errData = await resp.json().catch(() => ({}));
+                    const errMsg = errData.error?.message || `HTTP ${resp.status}`;
+                    throw new Error(errMsg);
+                }
+                
                 const data = await resp.json();
                 
                 // Remove loading bubble
