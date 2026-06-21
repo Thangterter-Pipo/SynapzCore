@@ -133,11 +133,25 @@
             box-shadow: 0 4px 20px rgba(108, 92, 231, 0.4);
         }
 
+        .btn-danger {
+            background: rgba(231, 76, 60, 0.1);
+            border-color: rgba(231, 76, 60, 0.3);
+            color: var(--danger);
+        }
+
+        .btn-danger:hover {
+            background: var(--danger);
+            border-color: var(--danger);
+            color: #fff;
+            box-shadow: 0 4px 15px rgba(231, 76, 60, 0.3);
+        }
+
         /* Main Layout */
         .main {
             display: grid;
             grid-template-columns: 320px 1fr;
             min-height: calc(100vh - 65px);
+            position: relative;
         }
 
         /* Sidebar */
@@ -176,7 +190,6 @@
 
         .stat-card.antigravity::before { background: var(--antigravity-color); }
         .stat-card.grok::before { background: var(--grok-color); }
-        .stat-card.chatgpt::before { background: var(--chatgpt-color); }
 
         .stat-label {
             font-size: 0.75rem;
@@ -194,7 +207,6 @@
         }
 
         .stat-value.grok { color: var(--grok-color); }
-        .stat-value.chatgpt { color: var(--chatgpt-color); }
         .stat-value.antigravity { color: var(--antigravity-color); }
 
         .sidebar h3 {
@@ -414,12 +426,6 @@
             border-color: rgba(255, 118, 117, 0.25);
         }
 
-        .badge-agent.chatgpt {
-            background: rgba(46, 204, 113, 0.15);
-            color: var(--chatgpt-color);
-            border-color: rgba(46, 204, 113, 0.25);
-        }
-
         .badge-category {
             background: rgba(108, 92, 231, 0.12);
             color: #a29bfe;
@@ -454,6 +460,243 @@
             padding-top: 0.5rem;
         }
 
+        .card-actions {
+            display: flex;
+            gap: 0.4rem;
+            position: absolute;
+            top: 1rem;
+            right: 1rem;
+            opacity: 0;
+            transition: opacity 0.2s ease;
+        }
+
+        .memory-card:hover .card-actions {
+            opacity: 1;
+        }
+
+        .btn-icon {
+            background: rgba(255,255,255,0.03);
+            border: 1px solid var(--border);
+            color: var(--text-secondary);
+            width: 28px;
+            height: 28px;
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-size: 0.8rem;
+        }
+
+        .btn-icon:hover {
+            background: var(--bg-hover);
+            border-color: var(--border-hover);
+            color: var(--text-primary);
+        }
+
+        .btn-icon.delete:hover {
+            background: rgba(231, 76, 60, 0.2);
+            border-color: var(--danger);
+            color: var(--danger);
+        }
+
+        /* Modal styling */
+        .modal-overlay {
+            position: fixed;
+            top: 0; left: 0; width: 100vw; height: 100vh;
+            background: rgba(0, 0, 0, 0.6);
+            backdrop-filter: blur(8px);
+            z-index: 200;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.3s ease;
+        }
+
+        .modal-overlay.active {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        .modal {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            width: 600px;
+            max-width: 90%;
+            padding: 1.75rem;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.5);
+            transform: scale(0.9);
+            transition: transform 0.3s cubic-bezier(0.18, 0.89, 0.32, 1.28);
+        }
+
+        .modal-overlay.active .modal {
+            transform: scale(1);
+        }
+
+        .modal-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 1.25rem;
+            border-bottom: 1px solid rgba(255,255,255,0.03);
+            padding-bottom: 0.75rem;
+        }
+
+        .modal-header h2 {
+            font-size: 1.2rem;
+            font-weight: 700;
+        }
+
+        .modal-body {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+
+        .modal-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 0.75rem;
+        }
+
+        .modal-footer {
+            display: flex;
+            justify-content: flex-end;
+            gap: 0.75rem;
+            margin-top: 1.5rem;
+            border-top: 1px solid rgba(255,255,255,0.03);
+            padding-top: 1rem;
+        }
+
+        /* Grok Chat Drawer */
+        .drawer-overlay {
+            position: fixed;
+            top: 0; left: 0; width: 100vw; height: 100vh;
+            background: rgba(0, 0, 0, 0.4);
+            backdrop-filter: blur(2px);
+            z-index: 150;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.3s ease;
+        }
+
+        .drawer-overlay.active {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        .drawer {
+            position: fixed;
+            top: 0; right: 0;
+            height: 100vh;
+            width: 480px;
+            max-width: 100%;
+            background: var(--bg-secondary);
+            backdrop-filter: blur(var(--glass-blur));
+            border-left: 1px solid var(--border);
+            z-index: 160;
+            box-shadow: -8px 0 30px rgba(0,0,0,0.5);
+            transform: translateX(100%);
+            transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            display: flex;
+            flex-direction: column;
+        }
+
+        .drawer-overlay.active + .drawer, .drawer.active {
+            transform: translateX(0);
+        }
+
+        .drawer-header {
+            padding: 1.25rem;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .drawer-header h2 {
+            font-size: 1.1rem;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            gap: 0.4rem;
+            color: var(--grok-color);
+        }
+
+        .chat-container {
+            flex: 1;
+            padding: 1.25rem;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+            background: rgba(0,0,0,0.1);
+        }
+
+        .chat-bubble {
+            max-width: 85%;
+            padding: 0.75rem 1rem;
+            border-radius: 12px;
+            font-size: 0.9rem;
+            line-height: 1.5;
+            word-break: break-word;
+        }
+
+        .chat-bubble.user {
+            background: var(--accent);
+            color: #fff;
+            align-self: flex-end;
+            border-bottom-right-radius: 2px;
+            box-shadow: 0 4px 12px rgba(108, 92, 231, 0.2);
+        }
+
+        .chat-bubble.bot {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            color: var(--text-primary);
+            align-self: flex-start;
+            border-bottom-left-radius: 2px;
+        }
+
+        .chat-bubble.bot.loading-bubble {
+            color: var(--text-secondary);
+            font-style: italic;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .chat-input-area {
+            padding: 1rem;
+            border-top: 1px solid var(--border);
+            background: var(--bg-secondary);
+            display: flex;
+            gap: 0.5rem;
+        }
+
+        .chat-input-box {
+            flex: 1;
+            padding: 0.65rem 1rem;
+            background: rgba(0,0,0,0.25);
+            border: 1px solid var(--border);
+            color: var(--text-primary);
+            border-radius: 10px;
+            font-family: inherit;
+            font-size: 0.9rem;
+            resize: none;
+            height: 40px;
+            line-height: 24px;
+        }
+
+        .chat-input-box:focus {
+            outline: none;
+            border-color: var(--accent);
+        }
+
         /* Loading */
         .loading {
             text-align: center;
@@ -486,7 +729,7 @@
             box-shadow: 0 8px 30px rgba(108, 92, 231, 0.3);
             font-size: 0.9rem;
             font-weight: 500;
-            z-index: 200;
+            z-index: 300;
             animation: slideUp 0.3s cubic-bezier(0.18, 0.89, 0.32, 1.28) forwards;
             display: none;
         }
@@ -500,6 +743,7 @@
         @media (max-width: 992px) {
             .main { grid-template-columns: 1fr; }
             .sidebar { border-right: none; border-bottom: 1px solid var(--border); }
+            .drawer { width: 100%; }
         }
     </style>
 </head>
@@ -508,9 +752,11 @@
         <h1>🧠 Antigravity Brain — Admin Dashboard</h1>
         <div class="header-actions">
             <span class="config-status" id="config-status-label">⚙️ Config: Checking...</span>
+            <button class="btn btn-primary" onclick="openAddModal()">➕ Add Memory</button>
+            <button class="btn" style="border-color: var(--grok-color); color: var(--grok-color)" onclick="toggleChatDrawer(true)">💬 Grok Chat</button>
             <button class="btn" onclick="checkHealth()">🏥 Health Check</button>
             <button class="btn" onclick="loadStats()">📊 Refresh Stats</button>
-            <button class="btn btn-primary" onclick="reloadData()">🔄 Reload</button>
+            <button class="btn" onclick="reloadData()">🔄 Reload</button>
         </div>
     </div>
 
@@ -619,6 +865,89 @@
         </div>
     </div>
 
+    <!-- Modal: Add Memory Overlay -->
+    <div class="modal-overlay" id="add-modal-overlay" onclick="if(event.target===this) closeAddModal()">
+        <div class="modal">
+            <div class="modal-header">
+                <h2>➕ Tạo Ký Ức Mới (Add Memory)</h2>
+                <button class="btn-icon" onclick="closeAddModal()">✕</button>
+            </div>
+            <div class="modal-body">
+                <div class="modal-row">
+                    <div class="filter-group">
+                        <label>Agent</label>
+                        <select id="modal-agent">
+                            <option value="antigravity">🔵 Antigravity</option>
+                            <option value="grok">🔴 Grok</option>
+                        </select>
+                    </div>
+                    <div class="filter-group">
+                        <label>Category</label>
+                        <select id="modal-category">
+                            <option value="decision">Decision</option>
+                            <option value="research">Research</option>
+                            <option value="review">Review</option>
+                            <option value="brainstorm">Brainstorm</option>
+                            <option value="skill">📚 Skill</option>
+                            <option value="reflection">🪞 Reflection</option>
+                            <option value="incident">Incident</option>
+                            <option value="conversation">Conversation</option>
+                            <option value="general" selected>General</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="modal-row">
+                    <div class="filter-group">
+                        <label>Độ Quan Trọng (Importance)</label>
+                        <select id="modal-importance">
+                            <option value="5">⭐⭐⭐⭐⭐ (5 - Rất cao)</option>
+                            <option value="4">⭐⭐⭐⭐ (4 - Cao)</option>
+                            <option value="3" selected>⭐⭐⭐ (3 - Trung bình)</option>
+                            <option value="2">⭐⭐ (2 - Thấp)</option>
+                            <option value="1">⭐ (1 - Rất thấp)</option>
+                        </select>
+                    </div>
+                    <div class="filter-group">
+                        <label>Độ Tin Cậy (Confidence)</label>
+                        <select id="modal-confidence">
+                            <option value="5">⭐⭐⭐⭐⭐ (5 - Tuyệt đối)</option>
+                            <option value="4" selected>⭐⭐⭐⭐ (4 - Tin cậy)</option>
+                            <option value="3">⭐⭐⭐ (3 - Bình thường)</option>
+                            <option value="2">⭐⭐ (2 - Thấp)</option>
+                            <option value="1">⭐ (1 - Rất thấp)</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="filter-group" style="margin-bottom: 0;">
+                    <label>Nội Dung Ký Ức (Memory Content)</label>
+                    <textarea id="modal-content" style="width:100%; height: 160px; padding: 0.75rem; background: var(--bg-card); border: 1px solid var(--border); color: var(--text-primary); border-radius: 10px; font-family: inherit; font-size: 0.9rem; resize: none;" placeholder="Nhập nội dung ký ức cần nạp tại đây..."></textarea>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn" onclick="closeAddModal()">Hủy bỏ</button>
+                <button class="btn btn-primary" onclick="saveNewMemory()">💾 Lưu ký ức</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Drawer: Grok Chat -->
+    <div class="drawer-overlay" id="drawer-overlay" onclick="toggleChatDrawer(false)"></div>
+    <div class="drawer" id="chat-drawer">
+        <div class="drawer-header">
+            <h2>🦉 Trò Chuyện Với Grok (Gravity)</h2>
+            <button class="btn-icon" onclick="toggleChatDrawer(false)">✕</button>
+        </div>
+        <div class="chat-container" id="chat-container">
+            <div class="chat-bubble bot">
+                Xin chào Bố! Con là Grok "Gravity". Con có thể giúp Bố nghiên cứu (research), phản tỉnh (think), hoặc đánh giá an toàn code (review). Bố cần gì ạ?
+            </div>
+        </div>
+        <div class="chat-input-area">
+            <textarea class="chat-input-box" id="chat-input" placeholder="Gửi tin nhắn cho Grok..." onkeydown="if(event.key==='Enter' && !event.shiftKey) { event.preventDefault(); sendChatMessage(); }"></textarea>
+            <button class="btn btn-primary" onclick="sendChatMessage()">Send</button>
+        </div>
+    </div>
+
     <div class="toast" id="toast"></div>
 
     <script>
@@ -628,6 +957,7 @@
         const GROK_URL = 'http://127.0.0.1:8000';
         let headers = {};
         let configLoaded = false;
+        let chatHistory = [];
 
         // === CONFIG AUTO-LOADER ===
         async function initConfig() {
@@ -723,11 +1053,38 @@
                             <span>ID: ${m.id} · Category: ${m.category}</span>
                             <span>${formatTime(m.created_at)}</span>
                         </div>
+                        <div class="card-actions">
+                            <button class="btn-icon delete" onclick="deleteMemory(${m.id})" title="Xóa ký ức">🗑️</button>
+                        </div>
                     </div>
                 `).join('');
 
             } catch (err) {
                 list.innerHTML = `<div class="loading"><p>❌ Lỗi truy vấn database: ${err.message}</p></div>`;
+            }
+        }
+
+        // === DELETE MEMORY ===
+        async function deleteMemory(id) {
+            if (!confirm(`Bố có chắc chắn muốn xóa vĩnh viễn ký ức ID: ${id} này không?`)) {
+                return;
+            }
+
+            try {
+                const url = `${SUPABASE_URL}/rest/v1/memories?id=eq.${id}`;
+                const resp = await fetch(url, {
+                    method: 'DELETE',
+                    headers
+                });
+
+                if (resp.ok) {
+                    showToast('🗑️ Đã xóa ký ức thành công!');
+                    reloadData();
+                } else {
+                    throw new Error('Không thể xóa ký ức');
+                }
+            } catch (err) {
+                showToast(`❌ Lỗi khi xóa: ${err.message}`);
             }
         }
 
@@ -875,6 +1232,151 @@
             } catch (err) {
                 showToast(`❌ Lỗi kết nối Grok Gateway: ${err.message}`);
             }
+        }
+
+        // === ADD MEMORY MODAL ===
+        function openAddModal() {
+            document.getElementById('modal-content').value = '';
+            document.getElementById('add-modal-overlay').classList.add('active');
+        }
+
+        function closeAddModal() {
+            document.getElementById('add-modal-overlay').classList.remove('active');
+        }
+
+        async function saveNewMemory() {
+            if (!configLoaded) {
+                showToast('❌ Supabase chưa kết nối!');
+                return;
+            }
+
+            const agent = document.getElementById('modal-agent').value;
+            const category = document.getElementById('modal-category').value;
+            const importance = parseInt(document.getElementById('modal-importance').value);
+            const confidence = parseInt(document.getElementById('modal-confidence').value);
+            const content = document.getElementById('modal-content').value.trim();
+
+            if (!content) {
+                showToast('⚠️ Vui lòng điền nội dung ký ức!');
+                return;
+            }
+
+            try {
+                const payload = {
+                    agent,
+                    category,
+                    importance,
+                    confidence,
+                    content,
+                    role: 'user',
+                    session_id: 'dashboard_manual_' + Date.now(),
+                    metadata: {},
+                    created_at: new Date().toISOString()
+                };
+
+                const resp = await fetch(`${SUPABASE_URL}/rest/v1/memories`, {
+                    method: 'POST',
+                    headers: {
+                        ...headers,
+                        'Prefer': 'return=representation'
+                    },
+                    body: JSON.stringify(payload)
+                });
+
+                if (resp.ok) {
+                    showToast('💾 Đã lưu ký ức thành công!');
+                    closeAddModal();
+                    reloadData();
+                } else {
+                    const errText = await resp.text();
+                    throw new Error(errText || 'Lưu thất bại');
+                }
+            } catch (err) {
+                showToast(`❌ Lỗi lưu dữ liệu: ${err.message}`);
+            }
+        }
+
+        // === GROK CHAT DRAWER ===
+        function toggleChatDrawer(open) {
+            const drawer = document.getElementById('chat-drawer');
+            const overlay = document.getElementById('drawer-overlay');
+            if (open) {
+                drawer.classList.add('active');
+                overlay.classList.add('active');
+            } else {
+                drawer.classList.remove('active');
+                overlay.classList.remove('active');
+            }
+        }
+
+        async function sendChatMessage() {
+            const input = document.getElementById('chat-input');
+            const text = input.value.trim();
+            if (!text) return;
+
+            // Append user bubble
+            appendChatBubble('user', text);
+            input.value = '';
+
+            // Append bot bubble loading placeholder
+            const loadBubble = appendChatBubble('bot loading-bubble', '<span>🦉 Grok đang suy nghĩ...</span>');
+
+            try {
+                // Construct messages payload for OpenAI-compatible endpoint
+                const messages = [
+                    { role: 'system', content: 'You are Grok "Gravity", a highly intelligent researcher and coding assistant. Speak Vietnamese naturally.' },
+                    ...chatHistory,
+                    { role: 'user', content: text }
+                ];
+
+                const resp = await fetch(`${GROK_URL}/v1/chat/completions`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        model: 'grok-4',
+                        messages,
+                        stream: false
+                    })
+                });
+
+                if (!resp.ok) throw new Error('API Gateway error or offline');
+                const data = await resp.json();
+                
+                // Remove loading bubble
+                loadBubble.remove();
+
+                const reply = data.choices[0].message.content;
+                appendChatBubble('bot', reply);
+
+                // Update local memory chat history
+                chatHistory.push({ role: 'user', content: text });
+                chatHistory.push({ role: 'assistant', content: reply });
+
+                // Keep history short
+                if (chatHistory.length > 10) chatHistory = chatHistory.slice(-10);
+
+            } catch (err) {
+                loadBubble.remove();
+                appendChatBubble('bot', `❌ Lỗi kết nối Grok: ${err.message}. Hãy chắc chắn rằng bạn đã khởi chạy grok2api và đã nạp Cookie token thành công.`);
+            }
+        }
+
+        function appendChatBubble(sender, text) {
+            const container = document.getElementById('chat-container');
+            const bubble = document.createElement('div');
+            bubble.className = `chat-bubble ${sender}`;
+            
+            if (sender.includes('loading-bubble')) {
+                bubble.innerHTML = text;
+            } else {
+                bubble.textContent = text;
+            }
+            
+            container.appendChild(bubble);
+            container.scrollTop = container.scrollHeight;
+            return bubble;
         }
 
         // === HELPERS ===

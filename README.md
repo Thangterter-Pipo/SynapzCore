@@ -367,6 +367,8 @@ http://localhost:8080/scripts/dashboard.html
 
 Tính năng:
 - ⚙️ **Dynamic Config Auto-Loader**: Tự động đọc cấu hình từ file `data/supabase_config.json` cục bộ khi chạy qua Web Server, giúp bảo mật key tuyệt đối và không cần khai báo tĩnh vào mã nguồn HTML.
+- ✍️ **Memory Creator & Editor (Quản trị 2 chiều)**: Cho phép Bố nạp ký ức dài hạn mới thông qua Form điền trực tiếp, và hỗ trợ nút xóa (`🗑️`) nhanh các ký ức ngay trên thẻ hiển thị.
+- 💬 **Grok Quick Chat Drawer**: Thiết lập ngăn kéo trượt (Drawer) từ bên phải cho phép Bố trò chuyện, đặt câu hỏi trực tiếp với Grok local (`grok2api`) trong thời gian thực mà không cần mở terminal.
 - 🦉 **Grok Token Manager**: Giám sát trạng thái hoạt động của Grok SSO token trong `grok2api` local, đồng thời hỗ trợ nạp hoặc cập nhật token bằng tay trực tiếp qua giao diện.
 - 📋 **Trình duyệt ký ức nâng cao**: Giao diện tối dạng kính mờ (Glassmorphism), hiển thị và tìm kiếm nhanh các ký ức dài hạn trên Supabase Cloud với đầy đủ bộ lọc (agent, category, importance).
 - 📊 **Biểu đồ thống kê & API Health**: Thống kê số lượng ký ức theo Agent và đo lường thời gian trễ (latency) kết nối của các dịch vụ API.
