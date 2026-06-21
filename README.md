@@ -367,12 +367,12 @@ http://localhost:8080/scripts/dashboard.html
 
 Tính năng:
 - ⚙️ **Dynamic Config Auto-Loader**: Tự động đọc cấu hình từ file `data/supabase_config.json` cục bộ khi chạy qua Web Server, giúp bảo mật key tuyệt đối và không cần khai báo tĩnh vào mã nguồn HTML.
-- ✍️ **Memory Creator & Editor (Quản trị 2 chiều)**: Cho phép Bố nạp ký ức dài hạn mới thông qua Form điền trực tiếp, và hỗ trợ nút xóa (`🗑️`) nhanh các ký ức ngay trên thẻ hiển thị.
-- 🚨 **Local Event Timeline (Dòng thời gian sự kiện)**: Tự động quét và phân tích các tệp nhật ký cục bộ (Decisions trong `memory/decisions/` và Incidents trong `memory/incidents/`) để dựng thành dòng thời gian sự kiện chi tiết và sinh động ngay trên web.
-- 💬 **Grok Quick Chat Drawer**: Thiết lập ngăn kéo trượt (Drawer) từ bên phải cho phép Bố trò chuyện, đặt câu hỏi trực tiếp với Grok local (`grok2api`) trong thời gian thực mà không cần mở terminal.
+- ✍️ **Memory Creator & Editor (Quản trị 2 chiều)**: Cho phép Bố nạp ký ức dài hạn mới thông qua Form điền trực tiếp, và hỗ trợ nút xóa (`🗑️`) nhanh các ký ức ngay trên thẻ hiển thị với thang đo **Độ quan trọng (Importance)** từ 1 đến 10.
+- 🚨 **Local Event Timeline (Dòng thời gian sự kiện)**: Tự động quét và phân tích các tệp nhật ký cục bộ (Decisions trong `memory/decisions/` và Incidents trong `memory/incidents/`) để dựng thành dòng thời gian sự kiện chi tiết. Hỗ trợ hiển thị cấu trúc JSON phức tạp đẹp mắt.
+- 💬 **Grok Quick Chat Drawer**: Thiết lập ngăn kéo trượt (Drawer) từ bên phải cho phép Bố trò chuyện trực tiếp với Grok local (`grok2api`) sử dụng xưng hô **Bố - con** chuẩn mực và liên tục.
 - 🦉 **Grok Token Manager**: Giám sát trạng thái hoạt động của Grok SSO token trong `grok2api` local, đồng thời hỗ trợ nạp hoặc cập nhật token bằng tay trực tiếp qua giao diện.
-- 📋 **Trình duyệt ký ức nâng cao**: Giao diện tối dạng kính mờ (Glassmorphism), hiển thị và tìm kiếm nhanh các ký ức dài hạn trên Supabase Cloud với đầy đủ bộ lọc (agent, category, importance).
-- 📊 **Biểu đồ thống kê & API Health**: Thống kê số lượng ký ức theo Agent và đo lường thời gian trễ (latency) kết nối của các dịch vụ API.
+- 📋 **Trình duyệt ký ức & Nhật ký nâng cao**: Giao diện tối dạng kính mờ (Glassmorphism), hiển thị và tìm kiếm nhanh các ký ức dài hạn hoặc các quyết định cục bộ với đầy đủ **bộ lọc đồng bộ ở Sidebar** (Agent, Category, Search, Min Importance 1-10) tự động chuyển đổi logic theo tab đang hoạt động.
+- 📊 **Biểu đồ thống kê & API Health**: Thống kê số lượng ký ức theo Agent và đo lường thời gian trễ (latency) kết nối của các dịch vụ API, tự động làm mới toàn bộ bằng nút **Reload** duy nhất.
 
 > [!NOTE]
 > Để tương tác với Grok Chat và Token Manager trên Dashboard, đảm bảo rằng local API Gateway (`grok2api`) đang chạy ở cổng 8000 và đã được cấu hình khóa truy cập (mặc định là `grok2api`). Giao thức trao đổi sẽ tự động nhúng mã xác thực này dưới dạng Bearer token.
