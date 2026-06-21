@@ -895,7 +895,6 @@
             <button class="btn btn-primary" onclick="openAddModal()">➕ Add Memory</button>
             <button class="btn" style="border-color: var(--grok-color); color: var(--grok-color)" onclick="toggleChatDrawer(true)">💬 Grok Chat</button>
             <button class="btn" onclick="checkHealth()">🏥 Health Check</button>
-            <button class="btn" onclick="loadStats()">📊 Refresh Stats</button>
             <button class="btn" onclick="reloadData()">🔄 Reload</button>
         </div>
     </div>
@@ -922,7 +921,7 @@
             <h3>Filters</h3>
             <div class="filter-group">
                 <label>Agent</label>
-                <select id="filter-agent" onchange="loadMemories()">
+                <select id="filter-agent" onchange="onFilterChange()">
                     <option value="">All Agents</option>
                     <option value="antigravity">🔵 Antigravity</option>
                     <option value="grok">🔴 Grok</option>
@@ -930,7 +929,7 @@
             </div>
             <div class="filter-group">
                 <label>Category</label>
-                <select id="filter-category" onchange="loadMemories()">
+                <select id="filter-category" onchange="onFilterChange()">
                     <option value="">All Categories</option>
                     <option value="research">Research</option>
                     <option value="decision">Decision</option>
@@ -945,9 +944,14 @@
             </div>
             <div class="filter-group">
                 <label>Min Importance</label>
-                <select id="filter-importance" onchange="loadMemories()">
+                <select id="filter-importance" onchange="onFilterChange()">
                     <option value="">Any</option>
-                    <option value="5">⭐⭐⭐⭐⭐ (5)</option>
+                    <option value="10">⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐ (10)</option>
+                    <option value="9">⭐⭐⭐⭐⭐⭐⭐⭐⭐ (9+)</option>
+                    <option value="8">⭐⭐⭐⭐⭐⭐⭐⭐ (8+)</option>
+                    <option value="7">⭐⭐⭐⭐⭐⭐⭐ (7+)</option>
+                    <option value="6">⭐⭐⭐⭐⭐⭐ (6+)</option>
+                    <option value="5">⭐⭐⭐⭐⭐ (5+)</option>
                     <option value="4">⭐⭐⭐⭐ (4+)</option>
                     <option value="3" selected>⭐⭐⭐ (3+)</option>
                     <option value="2">⭐⭐ (2+)</option>
@@ -995,8 +999,8 @@
 
                 <!-- Toolbar Search -->
                 <div class="toolbar">
-                    <input class="search-box" id="search-input" placeholder="🔍 Tìm kiếm ký ức (Nhấn Enter)..." onkeydown="if(event.key==='Enter') loadMemories()">
-                    <button class="btn btn-primary" onclick="loadMemories()">Search</button>
+                    <input class="search-box" id="search-input" placeholder="🔍 Tìm kiếm... (Nhấn Enter)" onkeydown="if(event.key==='Enter') onFilterChange()">
+                    <button class="btn btn-primary" onclick="onFilterChange()">Search</button>
                     <span id="result-count" style="font-size: 0.85rem; color: var(--text-secondary); margin-left: auto;"></span>
                 </div>
 
@@ -1054,6 +1058,11 @@
                     <div class="filter-group">
                         <label>Độ Quan Trọng (Importance)</label>
                         <select id="modal-importance">
+                            <option value="10">⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐ (10 - Cực kỳ cao)</option>
+                            <option value="9">⭐⭐⭐⭐⭐⭐⭐⭐⭐ (9)</option>
+                            <option value="8">⭐⭐⭐⭐⭐⭐⭐⭐ (8)</option>
+                            <option value="7">⭐⭐⭐⭐⭐⭐⭐ (7)</option>
+                            <option value="6">⭐⭐⭐⭐⭐⭐ (6)</option>
                             <option value="5">⭐⭐⭐⭐⭐ (5 - Rất cao)</option>
                             <option value="4">⭐⭐⭐⭐ (4 - Cao)</option>
                             <option value="3" selected>⭐⭐⭐ (3 - Trung bình)</option>
@@ -1128,6 +1137,17 @@
             }
         }
 
+        // === FILTER ROUTER ===
+        function onFilterChange() {
+            const activeTabBtn = document.querySelector('.tab.active');
+            if (!activeTabBtn) return;
+            if (activeTabBtn.id === 'tab-memories') {
+                loadMemories();
+            } else if (activeTabBtn.id === 'tab-timeline') {
+                loadTimeline();
+            }
+        }
+
         // === CONFIG AUTO-LOADER ===
         async function initConfig() {
             const statusLabel = document.getElementById('config-status-label');
@@ -1173,16 +1193,23 @@
                 await initConfig();
             }
             
-            const activeTab = document.querySelector('.tab.active').id;
-            if (activeTab === 'tab-memories' && configLoaded) {
-                loadMemories();
+            // Luôn làm mới stats ở Sidebar nếu database đã kết nối
+            if (configLoaded) {
                 loadStats();
-            } else if (activeTab === 'tab-timeline') {
-                loadTimeline();
+            }
+            
+            const activeTabBtn = document.querySelector('.tab.active');
+            if (activeTabBtn) {
+                if (activeTabBtn.id === 'tab-memories') {
+                    loadMemories();
+                } else if (activeTabBtn.id === 'tab-timeline') {
+                    loadTimeline();
+                }
             }
             
             checkHealth();
             checkGrokTokens();
+            showToast('🔄 Đã làm mới toàn bộ dữ liệu!');
         }
 
         // === MEMORY LOADING ===
@@ -1290,8 +1317,6 @@
                 });
                 const arng = ar.headers.get('content-range');
                 document.getElementById('stat-archived').textContent = arng ? arng.split('/')[1] : '0';
-
-                showToast('📊 Đã làm mới số liệu thống kê!');
             } catch (err) {
                 showToast('❌ Thống kê lỗi: ' + err.message);
             }
@@ -1337,6 +1362,10 @@
             const container = document.getElementById('timeline-container');
             container.innerHTML = '<div class="loading"><div class="spinner"></div><p>Đang đọc tệp nhật ký local...</p></div>';
 
+            const agentFilter = document.getElementById('filter-agent').value;
+            const categoryFilter = document.getElementById('filter-category').value;
+            const searchFilter = document.getElementById('search-input').value.trim().toLowerCase();
+
             try {
                 let events = [];
 
@@ -1353,7 +1382,7 @@
                                     title: data.decision || 'Quyết định hệ thống',
                                     time: data.timestamp || new Date().toISOString(),
                                     context: data.context || '',
-                                    rationale: data.rules ? data.rules.join('\n') : '',
+                                    rationale: data.rules ? (Array.isArray(data.rules) ? data.rules.join('\n') : String(data.rules)) : '',
                                     rawFile: file
                                 });
                             } else if (file.endsWith('.md')) {
@@ -1391,12 +1420,30 @@
                 // Sắp xếp các sự kiện theo thời gian giảm dần (mới nhất lên đầu)
                 events.sort((a, b) => new Date(b.time) - new Date(a.time));
 
-                if (events.length === 0) {
-                    container.innerHTML = '<div class="loading"><p>Không tìm thấy tệp nhật ký Decisions hoặc Incidents nào.</p></div>';
+                // Áp dụng bộ lọc từ Sidebar
+                let filteredEvents = events;
+                if (agentFilter) {
+                    // Local logs ngầm định là của Antigravity
+                    filteredEvents = filteredEvents.filter(ev => agentFilter === 'antigravity');
+                }
+                if (categoryFilter) {
+                    filteredEvents = filteredEvents.filter(ev => ev.type === categoryFilter);
+                }
+                if (searchFilter) {
+                    filteredEvents = filteredEvents.filter(ev => 
+                        (ev.title && ev.title.toLowerCase().includes(searchFilter)) ||
+                        (ev.context && String(ev.context).toLowerCase().includes(searchFilter)) ||
+                        (ev.rationale && String(ev.rationale).toLowerCase().includes(searchFilter)) ||
+                        (ev.rawFile && ev.rawFile.toLowerCase().includes(searchFilter))
+                    );
+                }
+
+                if (filteredEvents.length === 0) {
+                    container.innerHTML = '<div class="loading"><p>Không tìm thấy tệp nhật ký Decisions hoặc Incidents nào phù hợp với bộ lọc.</p></div>';
                     return;
                 }
 
-                container.innerHTML = events.map(ev => `
+                container.innerHTML = filteredEvents.map(ev => `
                     <div class="timeline-item ${ev.type}">
                         <div class="timeline-marker"></div>
                         <div class="timeline-card">
@@ -1405,11 +1452,11 @@
                             </div>
                             <div class="timeline-body">
                                 <div class="timeline-section-title">Ngữ cảnh / Sự kiện:</div>
-                                <div class="timeline-section-content">${escapeHtml(ev.context)}</div>
+                                <div class="timeline-section-content">${formatSectionContent(ev.context)}</div>
                                 
                                 ${ev.rationale ? `
                                     <div class="timeline-section-title">${ev.type === 'decision' ? 'Quy tắc / Giải pháp:' : 'Phân tích & Bài học:'}</div>
-                                    <div class="timeline-section-content">${escapeHtml(ev.rationale)}</div>
+                                    <div class="timeline-section-content">${formatSectionContent(ev.rationale)}</div>
                                 ` : ''}
                             </div>
                             <div class="timeline-time">⏱️ ${formatTime(ev.time)} · Tệp: ${ev.rawFile}</div>
@@ -1420,6 +1467,21 @@
             } catch (err) {
                 container.innerHTML = `<div class="loading"><p>❌ Lỗi tải timeline: ${err.message}</p></div>`;
             }
+        }
+
+        function formatSectionContent(val) {
+            if (val === null || val === undefined) return '';
+            let str = '';
+            if (typeof val === 'object') {
+                try {
+                    str = JSON.stringify(val, null, 2);
+                } catch (e) {
+                    str = String(val);
+                }
+            } else {
+                str = String(val);
+            }
+            return escapeHtml(str);
         }
 
         // Helper quét danh sách file từ thư mục được serve bởi python http.server
@@ -1659,7 +1721,7 @@
 
                 // Construct messages payload for OpenAI-compatible endpoint
                 const messages = [
-                    { role: 'system', content: 'You are Grok "Gravity", a highly intelligent researcher and coding assistant. Speak Vietnamese naturally.' },
+                    { role: 'system', content: 'You are Grok "Gravity", a highly intelligent researcher and coding assistant. Always address the user as "Bố" and refer to yourself as "con". Speak Vietnamese naturally and politely.' },
                     ...chatHistory,
                     { role: 'user', content: text }
                 ];
@@ -1726,7 +1788,9 @@
         }
 
         function escapeHtml(s) {
-            return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+            if (s === null || s === undefined) return '';
+            const str = typeof s === 'string' ? s : String(s);
+            return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
         }
 
         function formatTime(ts) {
