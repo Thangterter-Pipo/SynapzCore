@@ -1,0 +1,14 @@
+[package]
+name = "agt-mcp"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+serde = { workspace = true }
+serde_json = { workspace = true }
+tokio = { workspace = true }
+anyhow = { workspace = true }
+agt-memory = { path = "../agt-memory" }
+agt-tools = { path = "../agt-tools" }
+rmcp = { version = "0.1", features = ["server", "transport-io"] }
+chrono = { workspace = true }

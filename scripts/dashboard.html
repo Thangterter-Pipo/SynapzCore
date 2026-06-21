@@ -1,0 +1,611 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🧠 Antigravity Brain — Admin Dashboard</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-primary: #0a0a0f;
+            --bg-secondary: #12121a;
+            --bg-card: #1a1a2e;
+            --bg-hover: #222240;
+            --accent: #6c5ce7;
+            --accent-glow: rgba(108, 92, 231, 0.3);
+            --grok-color: #e74c3c;
+            --chatgpt-color: #2ecc71;
+            --antigravity-color: #3498db;
+            --text-primary: #e8e8f0;
+            --text-secondary: #8888a0;
+            --text-muted: #555570;
+            --border: #2a2a40;
+            --success: #2ecc71;
+            --warning: #f1c40f;
+            --danger: #e74c3c;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'Inter', -apple-system, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            min-height: 100vh;
+        }
+
+        /* Header */
+        .header {
+            background: linear-gradient(135deg, var(--bg-secondary), var(--bg-card));
+            border-bottom: 1px solid var(--border);
+            padding: 1rem 2rem;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            backdrop-filter: blur(20px);
+        }
+
+        .header h1 {
+            font-size: 1.4rem;
+            font-weight: 700;
+            background: linear-gradient(135deg, var(--accent), #a29bfe);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .header-actions {
+            display: flex;
+            gap: 0.75rem;
+        }
+
+        .btn {
+            padding: 0.5rem 1rem;
+            border: 1px solid var(--border);
+            background: var(--bg-card);
+            color: var(--text-primary);
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 0.85rem;
+            font-family: inherit;
+            transition: all 0.2s;
+        }
+
+        .btn:hover {
+            background: var(--bg-hover);
+            border-color: var(--accent);
+            box-shadow: 0 0 15px var(--accent-glow);
+        }
+
+        .btn-primary {
+            background: var(--accent);
+            border-color: var(--accent);
+        }
+
+        .btn-primary:hover {
+            background: #7d6ef0;
+        }
+
+        .btn-danger {
+            border-color: var(--danger);
+            color: var(--danger);
+        }
+
+        /* Main Layout */
+        .main {
+            display: grid;
+            grid-template-columns: 280px 1fr;
+            min-height: calc(100vh - 60px);
+        }
+
+        /* Sidebar */
+        .sidebar {
+            background: var(--bg-secondary);
+            border-right: 1px solid var(--border);
+            padding: 1.5rem 1rem;
+        }
+
+        .stat-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 1rem;
+            margin-bottom: 0.75rem;
+            transition: all 0.2s;
+        }
+
+        .stat-card:hover {
+            border-color: var(--accent);
+            box-shadow: 0 0 20px var(--accent-glow);
+        }
+
+        .stat-label {
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 0.25rem;
+        }
+
+        .stat-value {
+            font-size: 1.8rem;
+            font-weight: 700;
+        }
+
+        .stat-value.grok { color: var(--grok-color); }
+        .stat-value.chatgpt { color: var(--chatgpt-color); }
+        .stat-value.antigravity { color: var(--antigravity-color); }
+
+        .sidebar h3 {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin: 1.5rem 0 0.75rem;
+        }
+
+        /* Filters */
+        .filter-group {
+            margin-bottom: 1rem;
+        }
+
+        .filter-group label {
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+            display: block;
+            margin-bottom: 0.3rem;
+        }
+
+        .filter-group select, .filter-group input {
+            width: 100%;
+            padding: 0.5rem;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            color: var(--text-primary);
+            border-radius: 8px;
+            font-family: inherit;
+            font-size: 0.85rem;
+        }
+
+        .filter-group select:focus, .filter-group input:focus {
+            outline: none;
+            border-color: var(--accent);
+            box-shadow: 0 0 10px var(--accent-glow);
+        }
+
+        /* Content Area */
+        .content {
+            padding: 1.5rem;
+            overflow-y: auto;
+        }
+
+        .toolbar {
+            display: flex;
+            gap: 0.75rem;
+            margin-bottom: 1rem;
+            align-items: center;
+        }
+
+        .search-box {
+            flex: 1;
+            padding: 0.6rem 1rem;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            color: var(--text-primary);
+            border-radius: 10px;
+            font-family: inherit;
+            font-size: 0.9rem;
+        }
+
+        .search-box:focus {
+            outline: none;
+            border-color: var(--accent);
+            box-shadow: 0 0 15px var(--accent-glow);
+        }
+
+        /* Memory Cards */
+        .memory-list {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+
+        .memory-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 1rem;
+            transition: all 0.2s;
+            cursor: pointer;
+        }
+
+        .memory-card:hover {
+            border-color: var(--accent);
+            transform: translateY(-1px);
+            box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+        }
+
+        .memory-meta {
+            display: flex;
+            gap: 0.5rem;
+            align-items: center;
+            margin-bottom: 0.5rem;
+            flex-wrap: wrap;
+        }
+
+        .badge {
+            font-size: 0.7rem;
+            padding: 0.15rem 0.5rem;
+            border-radius: 20px;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .badge-agent {
+            background: rgba(108, 92, 231, 0.2);
+            color: var(--accent);
+            border: 1px solid rgba(108, 92, 231, 0.3);
+        }
+
+        .badge-agent.grok {
+            background: rgba(231, 76, 60, 0.2);
+            color: var(--grok-color);
+            border-color: rgba(231, 76, 60, 0.3);
+        }
+
+        .badge-agent.chatgpt {
+            background: rgba(46, 204, 113, 0.2);
+            color: var(--chatgpt-color);
+            border-color: rgba(46, 204, 113, 0.3);
+        }
+
+        .badge-category {
+            background: rgba(52, 152, 219, 0.2);
+            color: var(--antigravity-color);
+            border: 1px solid rgba(52, 152, 219, 0.3);
+        }
+
+        .badge-importance {
+            font-size: 0.7rem;
+            color: var(--text-muted);
+        }
+
+        .memory-content {
+            font-size: 0.9rem;
+            line-height: 1.5;
+            color: var(--text-primary);
+            white-space: pre-wrap;
+            word-break: break-word;
+        }
+
+        .memory-time {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            margin-top: 0.5rem;
+        }
+
+        /* Health Indicators */
+        .health-row {
+            display: flex;
+            gap: 0.5rem;
+            align-items: center;
+            padding: 0.5rem 0;
+        }
+
+        .health-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--text-muted);
+        }
+
+        .health-dot.healthy { background: var(--success); box-shadow: 0 0 6px var(--success); }
+        .health-dot.unhealthy { background: var(--danger); box-shadow: 0 0 6px var(--danger); }
+
+        .health-label {
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+        }
+
+        /* Loading */
+        .loading {
+            text-align: center;
+            padding: 3rem;
+            color: var(--text-muted);
+        }
+
+        .spinner {
+            display: inline-block;
+            width: 30px;
+            height: 30px;
+            border: 3px solid var(--border);
+            border-top-color: var(--accent);
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        /* Toast */
+        .toast {
+            position: fixed;
+            bottom: 2rem;
+            right: 2rem;
+            background: var(--bg-card);
+            border: 1px solid var(--accent);
+            border-radius: 10px;
+            padding: 0.75rem 1.25rem;
+            box-shadow: 0 4px 25px rgba(108,92,231,0.3);
+            font-size: 0.9rem;
+            z-index: 200;
+            animation: slideUp 0.3s ease;
+            display: none;
+        }
+
+        @keyframes slideUp {
+            from { transform: translateY(20px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .main { grid-template-columns: 1fr; }
+            .sidebar { display: none; }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🧠 Antigravity Brain — Admin Dashboard</h1>
+        <div class="header-actions">
+            <button class="btn" onclick="checkHealth()">🏥 Health Check</button>
+            <button class="btn" onclick="loadStats()">📊 Refresh Stats</button>
+            <button class="btn btn-primary" onclick="loadMemories()">🔄 Reload</button>
+        </div>
+    </div>
+
+    <div class="main">
+        <div class="sidebar">
+            <div class="stat-card">
+                <div class="stat-label">Total Memories</div>
+                <div class="stat-value" id="stat-total">—</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">🔵 Antigravity</div>
+                <div class="stat-value antigravity" id="stat-antigravity">—</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">🔴 Grok</div>
+                <div class="stat-value grok" id="stat-grok">—</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">🟢 ChatGPT</div>
+                <div class="stat-value chatgpt" id="stat-chatgpt">—</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">📦 Archived</div>
+                <div class="stat-value" id="stat-archived">—</div>
+            </div>
+
+            <h3>Filters</h3>
+            <div class="filter-group">
+                <label>Agent</label>
+                <select id="filter-agent" onchange="loadMemories()">
+                    <option value="">All Agents</option>
+                    <option value="antigravity">🔵 Antigravity</option>
+                    <option value="grok">🔴 Grok</option>
+                    <option value="chatgpt">🟢 ChatGPT</option>
+                </select>
+            </div>
+            <div class="filter-group">
+                <label>Category</label>
+                <select id="filter-category" onchange="loadMemories()">
+                    <option value="">All Categories</option>
+                    <option value="research">Research</option>
+                    <option value="decision">Decision</option>
+                    <option value="review">Review</option>
+                    <option value="brainstorm">Brainstorm</option>
+                    <option value="conversation">Conversation</option>
+                    <option value="skill">📚 Skill</option>
+                    <option value="reflection">🪞 Reflection</option>
+                    <option value="incident">Incident</option>
+                    <option value="general">General</option>
+                </select>
+            </div>
+            <div class="filter-group">
+                <label>Min Importance</label>
+                <select id="filter-importance" onchange="loadMemories()">
+                    <option value="">Any</option>
+                    <option value="5">⭐⭐⭐⭐⭐ (5)</option>
+                    <option value="4">⭐⭐⭐⭐ (4+)</option>
+                    <option value="3" selected>⭐⭐⭐ (3+)</option>
+                    <option value="2">⭐⭐ (2+)</option>
+                    <option value="1">⭐ (1+)</option>
+                </select>
+            </div>
+
+            <h3>API Health</h3>
+            <div id="health-section">
+                <div class="health-row">
+                    <div class="health-dot" id="health-supabase"></div>
+                    <span class="health-label">Supabase</span>
+                </div>
+                <div class="health-row">
+                    <div class="health-dot" id="health-grok"></div>
+                    <span class="health-label">Grok API</span>
+                </div>
+                <div class="health-row">
+                    <div class="health-dot" id="health-chatgpt"></div>
+                    <span class="health-label">ChatGPT API</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="content">
+            <div class="toolbar">
+                <input class="search-box" id="search-input" placeholder="🔍 Search memories..." onkeydown="if(event.key==='Enter') loadMemories()">
+                <button class="btn" onclick="loadMemories()">Search</button>
+                <span id="result-count" style="font-size: 0.85rem; color: var(--text-muted);"></span>
+            </div>
+            <div class="memory-list" id="memory-list">
+                <div class="loading"><div class="spinner"></div><p>Loading memories...</p></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="toast" id="toast"></div>
+
+    <script>
+        // === CONFIG ===
+        const SUPABASE_URL = 'YOUR_SUPABASE_URL';
+        const SUPABASE_KEY = 'YOUR_SUPABASE_KEY';
+        const GROK_URL = 'http://127.0.0.1:8000';
+        const CHATGPT_URL = 'http://localhost:5005';
+
+        const headers = {
+            'apikey': SUPABASE_KEY,
+            'Authorization': `Bearer ${SUPABASE_KEY}`,
+            'Content-Type': 'application/json',
+        };
+
+        // === MEMORY LOADING ===
+        async function loadMemories() {
+            const list = document.getElementById('memory-list');
+            list.innerHTML = '<div class="loading"><div class="spinner"></div><p>Loading...</p></div>';
+
+            const agent = document.getElementById('filter-agent').value;
+            const category = document.getElementById('filter-category').value;
+            const importance = document.getElementById('filter-importance').value;
+            const search = document.getElementById('search-input').value;
+
+            let url = `${SUPABASE_URL}/rest/v1/memories?select=*&order=created_at.desc&limit=50`;
+
+            if (agent) url += `&agent=eq.${agent}`;
+            if (category) url += `&category=eq.${category}`;
+            if (importance) url += `&importance=gte.${importance}`;
+            if (search) url += `&content=ilike.*${encodeURIComponent(search)}*`;
+
+            try {
+                const resp = await fetch(url, { headers });
+                const memories = await resp.json();
+
+                document.getElementById('result-count').textContent = `${memories.length} memories`;
+
+                if (memories.length === 0) {
+                    list.innerHTML = '<div class="loading"><p>No memories found.</p></div>';
+                    return;
+                }
+
+                list.innerHTML = memories.map(m => `
+                    <div class="memory-card" onclick="this.querySelector('.memory-content').classList.toggle('expanded')">
+                        <div class="memory-meta">
+                            <span class="badge badge-agent ${m.agent}">${agentEmoji(m.agent)} ${m.agent}</span>
+                            <span class="badge badge-category">${m.category}</span>
+                            <span class="badge-importance">${'⭐'.repeat(m.importance || 3)} (${m.importance || 3})</span>
+                            <span class="badge-importance">conf:${m.confidence || 3}</span>
+                        </div>
+                        <div class="memory-content">${escapeHtml(m.content || '')}</div>
+                        <div class="memory-time">${formatTime(m.created_at)} · ID: ${m.id}</div>
+                    </div>
+                `).join('');
+
+            } catch (err) {
+                list.innerHTML = `<div class="loading"><p>❌ Error: ${err.message}</p></div>`;
+            }
+        }
+
+        // === STATS ===
+        async function loadStats() {
+            try {
+                // Total
+                const resp = await fetch(`${SUPABASE_URL}/rest/v1/memories?select=id&limit=1`, {
+                    headers: { ...headers, 'Prefer': 'count=exact' }
+                });
+                const range = resp.headers.get('content-range');
+                const total = range ? range.split('/')[1] : '?';
+                document.getElementById('stat-total').textContent = total;
+
+                // Per agent
+                for (const agent of ['antigravity', 'grok', 'chatgpt']) {
+                    const r = await fetch(`${SUPABASE_URL}/rest/v1/memories?select=id&agent=eq.${agent}&limit=1`, {
+                        headers: { ...headers, 'Prefer': 'count=exact' }
+                    });
+                    const rng = r.headers.get('content-range');
+                    const cnt = rng ? rng.split('/')[1] : '0';
+                    document.getElementById(`stat-${agent}`).textContent = cnt;
+                }
+
+                // Archived
+                const ar = await fetch(`${SUPABASE_URL}/rest/v1/memories_archive?select=id&limit=1`, {
+                    headers: { ...headers, 'Prefer': 'count=exact' }
+                });
+                const arng = ar.headers.get('content-range');
+                document.getElementById('stat-archived').textContent = arng ? arng.split('/')[1] : '0';
+
+                showToast('📊 Stats refreshed!');
+            } catch (err) {
+                showToast('❌ Stats error: ' + err.message);
+            }
+        }
+
+        // === HEALTH CHECK ===
+        async function checkHealth() {
+            // Supabase
+            try {
+                const r = await fetch(`${SUPABASE_URL}/rest/v1/memories?select=id&limit=1`, { headers });
+                setHealth('supabase', r.ok);
+            } catch { setHealth('supabase', false); }
+
+            // Grok
+            try {
+                const r = await fetch(`${GROK_URL}/v1/models`);
+                setHealth('grok', r.ok);
+            } catch { setHealth('grok', false); }
+
+            // ChatGPT
+            try {
+                const r = await fetch(`${CHATGPT_URL}/v1/models`);
+                setHealth('chatgpt', r.ok);
+            } catch { setHealth('chatgpt', false); }
+
+            showToast('🏥 Health check complete');
+        }
+
+        function setHealth(service, healthy) {
+            const dot = document.getElementById(`health-${service}`);
+            dot.className = `health-dot ${healthy ? 'healthy' : 'unhealthy'}`;
+        }
+
+        // === HELPERS ===
+        function agentEmoji(agent) {
+            return { antigravity: '🔵', grok: '🔴', chatgpt: '🟢' }[agent] || '⚪';
+        }
+
+        function escapeHtml(s) {
+            return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        }
+
+        function formatTime(ts) {
+            if (!ts) return '?';
+            const d = new Date(ts);
+            return d.toLocaleString('vi-VN', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
+        }
+
+        function showToast(msg) {
+            const t = document.getElementById('toast');
+            t.textContent = msg;
+            t.style.display = 'block';
+            setTimeout(() => t.style.display = 'none', 3000);
+        }
+
+        // === INIT ===
+        window.addEventListener('DOMContentLoaded', () => {
+            loadMemories();
+            loadStats();
+            checkHealth();
+        });
+    </script>
+</body>
+</html>

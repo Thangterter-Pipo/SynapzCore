@@ -1,0 +1,37 @@
+# AGT_Brain — .gitignore
+
+# Build artifacts
+/target/
+/target_build/
+scripts/chatgpt_register/target/
+Cargo.lock
+
+# IDE & Editor
+.vscode/
+.idea/
+
+# AI Agent internals
+.claude/
+.gitnexus/
+.agentMemory/
+
+# Secrets — NEVER commit
+/data/
+/memory/
+grok2api_local/
+grok2api_data/
+
+# OS junk
+Thumbs.db
+.DS_Store
+
+# Legacy
+node_modules/
+.venv_memory/
+devops/
+__pycache__/
+*.pyc
+
+# Binary
+agt-mcp.exe
+agt-mcp

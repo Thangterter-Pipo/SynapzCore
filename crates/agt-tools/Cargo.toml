@@ -1,0 +1,28 @@
+[package]
+name = "agt-tools"
+version = "0.1.0"
+edition = "2024"
+
+[[bin]]
+name = "ask-grok"
+path = "src/bin/ask_grok.rs"
+
+# ask-team binary deprecated (ChatGPT collaboration removed)
+
+[[bin]]
+name = "brain-cron"
+path = "src/bin/brain_cron.rs"
+
+[dependencies]
+serde = { workspace = true }
+serde_json = { workspace = true }
+tokio = { workspace = true }
+reqwest = { workspace = true }
+uuid = { workspace = true }
+chrono = { workspace = true }
+glob = { workspace = true }
+anyhow = { workspace = true }
+clap = { version = "4", features = ["derive"] }
+agt-memory = { path = "../agt-memory" }
+tokio-tungstenite = { version = "0.24", features = ["native-tls"] }
+futures-util = "0.3"

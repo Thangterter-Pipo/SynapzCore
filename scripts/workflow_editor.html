@@ -1,0 +1,739 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🧠 Antigravity Brain — Visual Workflow Editor</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-void: #050510;
+            --bg-primary: #0a0a1a;
+            --bg-secondary: #111128;
+            --bg-card: #1a1a35;
+            --bg-hover: #252550;
+            --accent: #7c6cf0;
+            --accent-bright: #a78bfa;
+            --accent-glow: rgba(124, 108, 240, 0.4);
+            --grok-color: #ef4444;
+            --grok-glow: rgba(239, 68, 68, 0.35);
+            --chatgpt-color: #22c55e;
+            --chatgpt-glow: rgba(34, 197, 94, 0.35);
+            --antigravity-color: #3b82f6;
+            --antigravity-glow: rgba(59, 130, 246, 0.35);
+            --boss-color: #f59e0b;
+            --boss-glow: rgba(245, 158, 11, 0.35);
+            --memory-color: #ec4899;
+            --memory-glow: rgba(236, 72, 153, 0.3);
+            --tool-color: #06b6d4;
+            --tool-glow: rgba(6, 182, 212, 0.3);
+            --text-primary: #eef0ff;
+            --text-secondary: #9898bb;
+            --text-muted: #555580;
+            --border: #2a2a50;
+            --success: #22c55e;
+            --danger: #ef4444;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'Inter', -apple-system, sans-serif;
+            background: var(--bg-void);
+            color: var(--text-primary);
+            overflow: hidden;
+            height: 100vh;
+            user-select: none;
+        }
+
+        /* === HEADER === */
+        .header {
+            background: linear-gradient(135deg, var(--bg-secondary), var(--bg-card));
+            border-bottom: 1px solid var(--border);
+            padding: 0.6rem 1.5rem;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            z-index: 100;
+            position: relative;
+            backdrop-filter: blur(20px);
+        }
+        .header h1 {
+            font-size: 1.1rem;
+            font-weight: 700;
+            background: linear-gradient(135deg, var(--accent), var(--accent-bright));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        .header-actions { display: flex; gap: 0.5rem; align-items: center; }
+        .btn {
+            padding: 0.4rem 0.8rem;
+            border: 1px solid var(--border);
+            background: var(--bg-card);
+            color: var(--text-primary);
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.78rem;
+            font-family: inherit;
+            transition: all 0.2s;
+        }
+        .btn:hover { background: var(--bg-hover); border-color: var(--accent); box-shadow: 0 0 12px var(--accent-glow); }
+        .btn-primary { background: var(--accent); border-color: var(--accent); }
+
+        /* === CANVAS === */
+        #canvas-container {
+            width: 100%;
+            height: calc(100vh - 45px);
+            position: relative;
+            overflow: hidden;
+            background:
+                radial-gradient(ellipse at 20% 50%, rgba(124,108,240,0.04) 0%, transparent 60%),
+                radial-gradient(ellipse at 80% 30%, rgba(59,130,246,0.03) 0%, transparent 60%),
+                var(--bg-void);
+        }
+        canvas {
+            position: absolute;
+            top: 0; left: 0;
+        }
+
+        /* === MINIMAP === */
+        .minimap {
+            position: absolute;
+            bottom: 16px; right: 16px;
+            width: 200px; height: 140px;
+            background: rgba(10,10,26,0.85);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            backdrop-filter: blur(10px);
+            overflow: hidden;
+            z-index: 50;
+        }
+        .minimap canvas { width: 100%; height: 100%; }
+
+        /* === PANEL === */
+        .info-panel {
+            position: absolute;
+            top: 12px; right: 16px;
+            width: 280px;
+            background: rgba(17,17,40,0.92);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            backdrop-filter: blur(16px);
+            z-index: 50;
+            display: none;
+            overflow: hidden;
+        }
+        .info-panel.visible { display: block; animation: fadeSlide 0.25s ease; }
+        @keyframes fadeSlide { from { opacity: 0; transform: translateX(10px); } to { opacity: 1; transform: translateX(0); }}
+        .panel-header {
+            padding: 0.8rem 1rem;
+            border-bottom: 1px solid var(--border);
+            display: flex; align-items: center; justify-content: space-between;
+        }
+        .panel-header h3 { font-size: 0.9rem; font-weight: 600; }
+        .panel-close { cursor: pointer; color: var(--text-muted); font-size: 1.1rem; }
+        .panel-close:hover { color: var(--text-primary); }
+        .panel-body { padding: 0.8rem 1rem; font-size: 0.8rem; line-height: 1.6; color: var(--text-secondary); }
+        .panel-body .stat-row { display: flex; justify-content: space-between; padding: 0.3rem 0; border-bottom: 1px solid rgba(42,42,80,0.5); }
+        .panel-body .stat-label { color: var(--text-muted); }
+        .panel-body .stat-value { font-weight: 600; font-family: 'JetBrains Mono', monospace; }
+
+        /* === HEALTH BAR === */
+        .health-bar {
+            position: absolute;
+            bottom: 16px; left: 16px;
+            display: flex; gap: 0.6rem;
+            z-index: 50;
+        }
+        .health-pill {
+            display: flex; align-items: center; gap: 0.4rem;
+            background: rgba(17,17,40,0.9);
+            border: 1px solid var(--border);
+            padding: 0.35rem 0.7rem;
+            border-radius: 20px;
+            font-size: 0.72rem;
+            backdrop-filter: blur(10px);
+        }
+        .health-dot {
+            width: 7px; height: 7px;
+            border-radius: 50%;
+            background: var(--text-muted);
+        }
+        .health-dot.ok { background: var(--success); box-shadow: 0 0 6px var(--success); }
+        .health-dot.fail { background: var(--danger); box-shadow: 0 0 6px var(--danger); }
+
+        /* === LEGEND === */
+        .legend {
+            position: absolute;
+            top: 12px; left: 16px;
+            display: flex; gap: 0.5rem;
+            z-index: 50;
+        }
+        .legend-item {
+            display: flex; align-items: center; gap: 0.3rem;
+            background: rgba(17,17,40,0.85);
+            border: 1px solid var(--border);
+            padding: 0.3rem 0.6rem;
+            border-radius: 6px;
+            font-size: 0.68rem;
+            color: var(--text-secondary);
+            backdrop-filter: blur(10px);
+        }
+        .legend-dot {
+            width: 8px; height: 8px;
+            border-radius: 50%;
+        }
+
+        /* === ZOOM CONTROLS === */
+        .zoom-controls {
+            position: absolute;
+            bottom: 170px; right: 16px;
+            display: flex; flex-direction: column; gap: 4px;
+            z-index: 50;
+        }
+        .zoom-btn {
+            width: 32px; height: 32px;
+            background: rgba(17,17,40,0.9);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            color: var(--text-secondary);
+            font-size: 1rem;
+            cursor: pointer;
+            display: flex; align-items: center; justify-content: center;
+        }
+        .zoom-btn:hover { background: var(--bg-hover); color: var(--text-primary); border-color: var(--accent); }
+
+        /* === TOOLTIP === */
+        .tooltip {
+            position: absolute;
+            background: rgba(17,17,40,0.95);
+            border: 1px solid var(--accent);
+            border-radius: 8px;
+            padding: 0.5rem 0.8rem;
+            font-size: 0.75rem;
+            color: var(--text-primary);
+            pointer-events: none;
+            z-index: 200;
+            display: none;
+            max-width: 250px;
+            backdrop-filter: blur(10px);
+            box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🧠 Antigravity Brain — Visual Workflow Editor</h1>
+        <div class="header-actions">
+            <button class="btn" onclick="resetView()">⊞ Reset View</button>
+            <button class="btn" onclick="toggleAnimation()">▶ Animation</button>
+            <button class="btn" onclick="refreshHealth()">🏥 Health</button>
+            <button class="btn btn-primary" onclick="window.open('dashboard.html')">📊 Dashboard</button>
+        </div>
+    </div>
+
+    <div id="canvas-container">
+        <canvas id="mainCanvas"></canvas>
+    </div>
+
+    <div class="legend" id="legend">
+        <div class="legend-item"><div class="legend-dot" style="background:var(--boss-color)"></div>Bố (User)</div>
+        <div class="legend-item"><div class="legend-dot" style="background:var(--antigravity-color)"></div>Antigravity</div>
+        <div class="legend-item"><div class="legend-dot" style="background:var(--grok-color)"></div>Grok</div>
+        <div class="legend-item"><div class="legend-dot" style="background:var(--chatgpt-color)"></div>ChatGPT</div>
+        <div class="legend-item"><div class="legend-dot" style="background:var(--memory-color)"></div>Memory</div>
+        <div class="legend-item"><div class="legend-dot" style="background:var(--tool-color)"></div>Tools</div>
+    </div>
+
+    <div class="health-bar" id="healthBar">
+        <div class="health-pill"><div class="health-dot" id="h-supabase"></div>Supabase</div>
+        <div class="health-pill"><div class="health-dot" id="h-grok"></div>Grok API</div>
+        <div class="health-pill"><div class="health-dot" id="h-chatgpt"></div>ChatGPT API</div>
+    </div>
+
+    <div class="zoom-controls">
+        <button class="zoom-btn" onclick="zoomIn()">+</button>
+        <button class="zoom-btn" onclick="zoomOut()">−</button>
+        <button class="zoom-btn" onclick="fitView()">⊡</button>
+    </div>
+
+    <div class="minimap">
+        <canvas id="minimapCanvas"></canvas>
+    </div>
+
+    <div class="info-panel" id="infoPanel">
+        <div class="panel-header">
+            <h3 id="panelTitle">Node Info</h3>
+            <span class="panel-close" onclick="closePanel()">✕</span>
+        </div>
+        <div class="panel-body" id="panelBody"></div>
+    </div>
+
+    <div class="tooltip" id="tooltip"></div>
+
+    <script>
+    // ============================================================
+    // CONFIG
+    // ============================================================
+    const SUPABASE_URL = 'YOUR_SUPABASE_URL';
+    const SUPABASE_KEY = 'YOUR_SUPABASE_KEY';
+    const GROK_URL = 'http://127.0.0.1:8000';
+    const CHATGPT_URL = 'http://localhost:5005';
+    const headers = { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}`, 'Content-Type': 'application/json' };
+
+    // ============================================================
+    // CANVAS SETUP
+    // ============================================================
+    const canvas = document.getElementById('mainCanvas');
+    const ctx = canvas.getContext('2d');
+    const mmCanvas = document.getElementById('minimapCanvas');
+    const mmCtx = mmCanvas.getContext('2d');
+
+    let W, H;
+    function resize() {
+        const cont = document.getElementById('canvas-container');
+        W = cont.clientWidth;
+        H = cont.clientHeight;
+        canvas.width = W * devicePixelRatio;
+        canvas.height = H * devicePixelRatio;
+        canvas.style.width = W + 'px';
+        canvas.style.height = H + 'px';
+        ctx.setTransform(devicePixelRatio, 0, 0, devicePixelRatio, 0, 0);
+        mmCanvas.width = 200 * devicePixelRatio;
+        mmCanvas.height = 140 * devicePixelRatio;
+        mmCtx.setTransform(devicePixelRatio, 0, 0, devicePixelRatio, 0, 0);
+    }
+    window.addEventListener('resize', resize);
+    resize();
+
+    // ============================================================
+    // VIEW STATE
+    // ============================================================
+    let viewX = 0, viewY = 0, viewScale = 1;
+    let animating = true;
+    let time = 0;
+    let draggingNode = null;
+    let dragOffX = 0, dragOffY = 0;
+    let panning = false, panStartX = 0, panStartY = 0, panViewStartX = 0, panViewStartY = 0;
+    let hoveredNode = null;
+
+    // ============================================================
+    // NODE DEFINITIONS
+    // ============================================================
+    const NODES = [
+        // Main agents
+        { id: 'boss', label: 'Bố', subtitle: 'User / Commander', x: 600, y: 80, w: 130, h: 60, color: '#f59e0b', glow: 'rgba(245,158,11,0.35)', icon: '👑', type: 'agent' },
+        { id: 'antigravity', label: 'Antigravity', subtitle: 'THE BUILDER', x: 600, y: 240, w: 160, h: 65, color: '#3b82f6', glow: 'rgba(59,130,246,0.4)', icon: '🧠', type: 'agent' },
+        { id: 'grok', label: 'Grok', subtitle: 'RESEARCHER', x: 330, y: 420, w: 160, h: 65, color: '#ef4444', glow: 'rgba(239,68,68,0.35)', icon: '🔴', type: 'agent' },
+        { id: 'chatgpt', label: 'ChatGPT', subtitle: 'REFINER (Polisher)', x: 870, y: 420, w: 160, h: 65, color: '#22c55e', glow: 'rgba(34,197,94,0.35)', icon: '🟢', type: 'agent' },
+
+        // Memory
+        { id: 'supabase', label: 'Supabase', subtitle: '690+ memories', x: 600, y: 580, w: 145, h: 55, color: '#ec4899', glow: 'rgba(236,72,153,0.3)', icon: '💾', type: 'memory' },
+        { id: 'local_mem', label: 'Local Memory', subtitle: 'decisions + incidents', x: 370, y: 680, w: 145, h: 50, color: '#d946ef', glow: 'rgba(217,70,239,0.3)', icon: '📁', type: 'memory' },
+        { id: 'skills', label: 'Skill Library', subtitle: 'Reusable patterns', x: 830, y: 680, w: 140, h: 50, color: '#a855f7', glow: 'rgba(168,85,247,0.3)', icon: '📚', type: 'memory' },
+
+        // MCP Tools
+        { id: 'mcp', label: 'MCP Server', subtitle: '13 tools → IDE', x: 200, y: 240, w: 145, h: 55, color: '#06b6d4', glow: 'rgba(6,182,212,0.3)', icon: '🔌', type: 'tool' },
+        { id: 'collab', label: 'Collaboration', subtitle: 'Parallel / Relay / Debate', x: 600, y: 420, w: 155, h: 55, color: '#14b8a6', glow: 'rgba(20,184,166,0.3)', icon: '🤝', type: 'tool' },
+        { id: 'cdp', label: 'CDP Controller', subtitle: 'Autonomous IDE', x: 1020, y: 240, w: 145, h: 55, color: '#f97316', glow: 'rgba(249,115,22,0.3)', icon: '🤖', type: 'tool' },
+        { id: 'cron', label: 'brain-cron', subtitle: 'Daily reflection', x: 200, y: 580, w: 135, h: 50, color: '#0ea5e9', glow: 'rgba(14,165,233,0.3)', icon: '⏰', type: 'tool' },
+        { id: 'dashboard', label: 'Dashboard', subtitle: 'Admin UI', x: 1020, y: 580, w: 130, h: 50, color: '#8b5cf6', glow: 'rgba(139,92,246,0.3)', icon: '📊', type: 'tool' },
+    ];
+
+    // ============================================================
+    // EDGE DEFINITIONS
+    // ============================================================
+    const EDGES = [
+        // Boss → Antigravity
+        { from: 'boss', to: 'antigravity', label: 'commands', color: '#f59e0b', animated: true },
+        // Antigravity → Subagents
+        { from: 'antigravity', to: 'grok', label: 'research / think', color: '#ef4444', animated: true },
+        { from: 'antigravity', to: 'chatgpt', label: 'code / verify', color: '#22c55e', animated: true },
+        // Collab
+        { from: 'grok', to: 'collab', label: 'parallel', color: '#14b8a6', animated: true, dashed: true },
+        { from: 'chatgpt', to: 'collab', label: 'relay', color: '#14b8a6', animated: true, dashed: true },
+        { from: 'collab', to: 'antigravity', label: 'merged result', color: '#14b8a6', animated: true },
+        // Memory
+        { from: 'antigravity', to: 'supabase', label: 'save / recall', color: '#ec4899', animated: true },
+        { from: 'grok', to: 'supabase', label: 'auto-save', color: '#ec4899', animated: false },
+        { from: 'chatgpt', to: 'supabase', label: 'auto-save', color: '#ec4899', animated: false },
+        { from: 'supabase', to: 'local_mem', label: 'decisions', color: '#d946ef', animated: false },
+        { from: 'supabase', to: 'skills', label: 'skills', color: '#a855f7', animated: false },
+        // Tools
+        { from: 'mcp', to: 'antigravity', label: '13 tools', color: '#06b6d4', animated: true },
+        { from: 'cdp', to: 'antigravity', label: 'autonomous', color: '#f97316', animated: true, dashed: true },
+        { from: 'cron', to: 'supabase', label: 'reflection', color: '#0ea5e9', animated: true },
+        { from: 'dashboard', to: 'supabase', label: 'read', color: '#8b5cf6', animated: false },
+    ];
+
+    // ============================================================
+    // NODE INFO DATA
+    // ============================================================
+    const NODE_INFO = {
+        boss: { title: '👑 Bố (User)', body: `<div class="stat-row"><span class="stat-label">Role</span><span class="stat-value">Commander</span></div><div class="stat-row"><span class="stat-label">Controls</span><span class="stat-value">All 3 AIs</span></div><div class="stat-row"><span class="stat-label">Platform</span><span class="stat-value">Antigravity IDE</span></div>` },
+        antigravity: { title: '🧠 Antigravity', body: `<div class="stat-row"><span class="stat-label">Role</span><span class="stat-value">THE BUILDER</span></div><div class="stat-row"><span class="stat-label">Tools</span><span class="stat-value">19 + CDP</span></div><div class="stat-row"><span class="stat-label">MCP</span><span class="stat-value">13 tools</span></div><div class="stat-row"><span class="stat-label">CLIs</span><span class="stat-value">4 binaries</span></div>` },
+        grok: { title: '🔴 Grok', body: `<div class="stat-row"><span class="stat-label">Endpoint</span><span class="stat-value">:8000</span></div><div class="stat-row"><span class="stat-label">Models</span><span class="stat-value">grok-3/4</span></div><div class="stat-row"><span class="stat-label">Modes</span><span class="stat-value">research, think, review, brainstorm</span></div>` },
+        chatgpt: { title: '🟢 ChatGPT (Refiner)', body: `<div class="stat-row"><span class="stat-label">Endpoint</span><span class="stat-value">:5005</span></div><div class="stat-row"><span class="stat-label">Models</span><span class="stat-value">gpt-4o, o3-mini</span></div><div class="stat-row"><span class="stat-label">Modes</span><span class="stat-value">code, creative, second_opinion</span></div>` },
+        supabase: { title: '💾 Supabase Cloud', body: `<div class="stat-row"><span class="stat-label">Region</span><span class="stat-value">ap-southeast-1</span></div><div class="stat-row"><span class="stat-label">Records</span><span class="stat-value" id="info-mem-count">Loading...</span></div><div class="stat-row"><span class="stat-label">Schema</span><span class="stat-value">10 cols + pgvector</span></div><div class="stat-row"><span class="stat-label">Search</span><span class="stat-value">Semantic (embedding)</span></div>` },
+        local_mem: { title: '📁 Local Memory', body: `<div class="stat-row"><span class="stat-label">Decisions</span><span class="stat-value">13 entries</span></div><div class="stat-row"><span class="stat-label">Incidents</span><span class="stat-value">1 entry</span></div><div class="stat-row"><span class="stat-label">Policy</span><span class="stat-value">Append-only, NEVER delete</span></div>` },
+        skills: { title: '📚 Skill Library', body: `<div class="stat-row"><span class="stat-label">Purpose</span><span class="stat-value">Reusable patterns</span></div><div class="stat-row"><span class="stat-label">Save</span><span class="stat-value">save_skill MCP</span></div><div class="stat-row"><span class="stat-label">Search</span><span class="stat-value">recall_skills MCP</span></div>` },
+        mcp: { title: '🔌 MCP Server', body: `<div class="stat-row"><span class="stat-label">Framework</span><span class="stat-value">rmcp (stdio)</span></div><div class="stat-row"><span class="stat-label">Tools</span><span class="stat-value">13 exposed</span></div><div class="stat-row"><span class="stat-label">Auto</span><span class="stat-value">auto_context first!</span></div>` },
+        collab: { title: '🤝 2-Agent Collaboration', body: `<div class="stat-row"><span class="stat-label">Parallel</span><span class="stat-value">Grok + GPT → merge</span></div><div class="stat-row"><span class="stat-label">Relay</span><span class="stat-value">Grok → GPT refine</span></div><div class="stat-row"><span class="stat-label">Debate</span><span class="stat-value">2-5 rounds adversarial</span></div>` },
+        cdp: { title: '🤖 CDP Controller', body: `<div class="stat-row"><span class="stat-label">Port</span><span class="stat-value">9333</span></div><div class="stat-row"><span class="stat-label">Protocol</span><span class="stat-value">Chrome DevTools</span></div><div class="stat-row"><span class="stat-label">Capabilities</span><span class="stat-value">Inject, Monitor, Switch</span></div>` },
+        cron: { title: '⏰ brain-cron', body: `<div class="stat-row"><span class="stat-label">Modes</span><span class="stat-value">one-shot, daemon</span></div><div class="stat-row"><span class="stat-label">Interval</span><span class="stat-value">12h default</span></div><div class="stat-row"><span class="stat-label">Output</span><span class="stat-value">Daily reflection</span></div>` },
+        dashboard: { title: '📊 Admin Dashboard', body: `<div class="stat-row"><span class="stat-label">File</span><span class="stat-value">dashboard.html</span></div><div class="stat-row"><span class="stat-label">Features</span><span class="stat-value">Memory browser, Stats, Health</span></div>` },
+    };
+
+    // ============================================================
+    // DRAWING HELPERS
+    // ============================================================
+    function screenX(wx) { return (wx - viewX) * viewScale + W / 2; }
+    function screenY(wy) { return (wy - viewY) * viewScale + H / 2; }
+    function worldX(sx) { return (sx - W / 2) / viewScale + viewX; }
+    function worldY(sy) { return (sy - H / 2) / viewScale + viewY; }
+
+    function drawRoundRect(ctx, x, y, w, h, r) {
+        ctx.beginPath();
+        ctx.moveTo(x + r, y);
+        ctx.lineTo(x + w - r, y);
+        ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+        ctx.lineTo(x + w, y + h - r);
+        ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+        ctx.lineTo(x + r, y + h);
+        ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+        ctx.lineTo(x, y + r);
+        ctx.quadraticCurveTo(x, y, x + r, y);
+        ctx.closePath();
+    }
+
+    // ============================================================
+    // DRAW EDGE
+    // ============================================================
+    function drawEdge(e, t) {
+        const fromNode = NODES.find(n => n.id === e.from);
+        const toNode = NODES.find(n => n.id === e.to);
+        if (!fromNode || !toNode) return;
+
+        const x1 = screenX(fromNode.x + fromNode.w / 2);
+        const y1 = screenY(fromNode.y + fromNode.h / 2);
+        const x2 = screenX(toNode.x + toNode.w / 2);
+        const y2 = screenY(toNode.y + toNode.h / 2);
+
+        ctx.save();
+        ctx.strokeStyle = e.color;
+        ctx.lineWidth = 1.5 * viewScale;
+        ctx.globalAlpha = 0.6;
+
+        if (e.dashed) ctx.setLineDash([6 * viewScale, 4 * viewScale]);
+
+        ctx.beginPath();
+        ctx.moveTo(x1, y1);
+        ctx.lineTo(x2, y2);
+        ctx.stroke();
+        ctx.setLineDash([]);
+
+        // Animated particle
+        if (e.animated && animating) {
+            const progress = ((t * 0.4) % 1000) / 1000;
+            const px = x1 + (x2 - x1) * progress;
+            const py = y1 + (y2 - y1) * progress;
+            ctx.globalAlpha = 1;
+            ctx.beginPath();
+            ctx.arc(px, py, 3 * viewScale, 0, Math.PI * 2);
+            ctx.fillStyle = e.color;
+            ctx.shadowColor = e.color;
+            ctx.shadowBlur = 8;
+            ctx.fill();
+        }
+
+        // Edge label
+        if (e.label) {
+            const mx = (x1 + x2) / 2;
+            const my = (y1 + y2) / 2;
+            ctx.globalAlpha = 0.7;
+            ctx.font = `${9 * viewScale}px Inter`;
+            ctx.fillStyle = e.color;
+            ctx.textAlign = 'center';
+            ctx.fillText(e.label, mx, my - 5 * viewScale);
+        }
+        ctx.restore();
+    }
+
+    // ============================================================
+    // DRAW NODE
+    // ============================================================
+    function drawNode(n, hovered) {
+        const sx = screenX(n.x);
+        const sy = screenY(n.y);
+        const sw = n.w * viewScale;
+        const sh = n.h * viewScale;
+        const r = 10 * viewScale;
+
+        ctx.save();
+
+        // Glow
+        if (hovered || n.type === 'agent') {
+            ctx.shadowColor = n.glow;
+            ctx.shadowBlur = hovered ? 25 : 15;
+        }
+
+        // Background
+        drawRoundRect(ctx, sx, sy, sw, sh, r);
+        const grad = ctx.createLinearGradient(sx, sy, sx, sy + sh);
+        grad.addColorStop(0, hovered ? 'rgba(30,30,70,0.95)' : 'rgba(20,20,50,0.9)');
+        grad.addColorStop(1, hovered ? 'rgba(25,25,55,0.95)' : 'rgba(15,15,40,0.9)');
+        ctx.fillStyle = grad;
+        ctx.fill();
+
+        // Border
+        ctx.shadowBlur = 0;
+        ctx.strokeStyle = hovered ? n.color : 'rgba(60,60,110,0.6)';
+        ctx.lineWidth = hovered ? 2 : 1;
+        ctx.stroke();
+
+        // Accent line top
+        ctx.beginPath();
+        ctx.moveTo(sx + r, sy);
+        ctx.lineTo(sx + sw - r, sy);
+        ctx.strokeStyle = n.color;
+        ctx.lineWidth = 2 * viewScale;
+        ctx.globalAlpha = 0.8;
+        ctx.stroke();
+
+        // Icon + Label
+        ctx.globalAlpha = 1;
+        const fontSize = Math.max(10, 12 * viewScale);
+        const subSize = Math.max(8, 9 * viewScale);
+        const iconSize = Math.max(12, 16 * viewScale);
+
+        ctx.font = `${iconSize}px Inter`;
+        ctx.textAlign = 'left';
+        ctx.fillText(n.icon, sx + 10 * viewScale, sy + sh / 2 + 2 * viewScale);
+
+        ctx.font = `600 ${fontSize}px Inter`;
+        ctx.fillStyle = '#fff';
+        ctx.fillText(n.label, sx + 30 * viewScale, sy + sh / 2 - 4 * viewScale);
+
+        ctx.font = `${subSize}px Inter`;
+        ctx.fillStyle = 'rgba(150,150,190,0.8)';
+        ctx.fillText(n.subtitle, sx + 30 * viewScale, sy + sh / 2 + 12 * viewScale);
+
+        // Pulse ring for agents
+        if (n.type === 'agent' && animating) {
+            const pulse = Math.sin(time * 0.003 + NODES.indexOf(n)) * 0.3 + 0.5;
+            ctx.globalAlpha = pulse * 0.15;
+            drawRoundRect(ctx, sx - 3, sy - 3, sw + 6, sh + 6, r + 3);
+            ctx.strokeStyle = n.color;
+            ctx.lineWidth = 1.5;
+            ctx.stroke();
+        }
+
+        ctx.restore();
+    }
+
+    // ============================================================
+    // DRAW GRID
+    // ============================================================
+    function drawGrid() {
+        const gridSize = 50;
+        ctx.save();
+        ctx.strokeStyle = 'rgba(40,40,80,0.15)';
+        ctx.lineWidth = 0.5;
+
+        const startX = Math.floor(worldX(0) / gridSize) * gridSize;
+        const endX = Math.ceil(worldX(W) / gridSize) * gridSize;
+        const startY = Math.floor(worldY(0) / gridSize) * gridSize;
+        const endY = Math.ceil(worldY(H) / gridSize) * gridSize;
+
+        for (let x = startX; x <= endX; x += gridSize) {
+            const sx = screenX(x);
+            ctx.beginPath(); ctx.moveTo(sx, 0); ctx.lineTo(sx, H); ctx.stroke();
+        }
+        for (let y = startY; y <= endY; y += gridSize) {
+            const sy = screenY(y);
+            ctx.beginPath(); ctx.moveTo(0, sy); ctx.lineTo(W, sy); ctx.stroke();
+        }
+        ctx.restore();
+    }
+
+    // ============================================================
+    // MINIMAP
+    // ============================================================
+    function drawMinimap() {
+        mmCtx.clearRect(0, 0, 200, 140);
+        mmCtx.fillStyle = 'rgba(10,10,26,0.5)';
+        mmCtx.fillRect(0, 0, 200, 140);
+
+        const allX = NODES.map(n => n.x);
+        const allY = NODES.map(n => n.y);
+        const minX = Math.min(...allX) - 50;
+        const maxX = Math.max(...allX.map((x, i) => x + NODES[i].w)) + 50;
+        const minY = Math.min(...allY) - 50;
+        const maxY = Math.max(...allY.map((y, i) => y + NODES[i].h)) + 50;
+        const rangeX = maxX - minX || 1;
+        const rangeY = maxY - minY || 1;
+        const scale = Math.min(190 / rangeX, 130 / rangeY);
+
+        NODES.forEach(n => {
+            const mx = (n.x - minX) * scale + 5;
+            const my = (n.y - minY) * scale + 5;
+            const mw = n.w * scale;
+            const mh = n.h * scale;
+            mmCtx.fillStyle = n.color;
+            mmCtx.globalAlpha = 0.6;
+            mmCtx.fillRect(mx, my, Math.max(mw, 3), Math.max(mh, 2));
+        });
+
+        // Viewport rectangle
+        const vx1 = (worldX(0) - minX) * scale + 5;
+        const vy1 = (worldY(0) - minY) * scale + 5;
+        const vx2 = (worldX(W) - minX) * scale + 5;
+        const vy2 = (worldY(H) - minY) * scale + 5;
+        mmCtx.globalAlpha = 0.4;
+        mmCtx.strokeStyle = '#fff';
+        mmCtx.lineWidth = 1;
+        mmCtx.strokeRect(vx1, vy1, vx2 - vx1, vy2 - vy1);
+        mmCtx.globalAlpha = 1;
+    }
+
+    // ============================================================
+    // MAIN RENDER
+    // ============================================================
+    function render() {
+        time = performance.now();
+        ctx.clearRect(0, 0, W, H);
+
+        drawGrid();
+
+        // Draw edges first
+        EDGES.forEach(e => drawEdge(e, time));
+
+        // Draw nodes
+        NODES.forEach(n => drawNode(n, hoveredNode === n));
+
+        drawMinimap();
+        requestAnimationFrame(render);
+    }
+
+    // ============================================================
+    // INTERACTION
+    // ============================================================
+    function getNodeAt(mx, my) {
+        const wx = worldX(mx);
+        const wy = worldY(my);
+        for (let i = NODES.length - 1; i >= 0; i--) {
+            const n = NODES[i];
+            if (wx >= n.x && wx <= n.x + n.w && wy >= n.y && wy <= n.y + n.h) return n;
+        }
+        return null;
+    }
+
+    canvas.addEventListener('mousedown', e => {
+        const mx = e.offsetX, my = e.offsetY;
+        const node = getNodeAt(mx, my);
+        if (node) {
+            draggingNode = node;
+            dragOffX = worldX(mx) - node.x;
+            dragOffY = worldY(my) - node.y;
+        } else {
+            panning = true;
+            panStartX = mx; panStartY = my;
+            panViewStartX = viewX; panViewStartY = viewY;
+        }
+    });
+
+    canvas.addEventListener('mousemove', e => {
+        const mx = e.offsetX, my = e.offsetY;
+        if (draggingNode) {
+            draggingNode.x = worldX(mx) - dragOffX;
+            draggingNode.y = worldY(my) - dragOffY;
+            canvas.style.cursor = 'grabbing';
+        } else if (panning) {
+            viewX = panViewStartX - (mx - panStartX) / viewScale;
+            viewY = panViewStartY - (my - panStartY) / viewScale;
+            canvas.style.cursor = 'grab';
+        } else {
+            const node = getNodeAt(mx, my);
+            hoveredNode = node;
+            canvas.style.cursor = node ? 'pointer' : 'default';
+
+            const tooltip = document.getElementById('tooltip');
+            if (node) {
+                tooltip.style.display = 'block';
+                tooltip.style.left = (mx + 15) + 'px';
+                tooltip.style.top = (my + 50) + 'px';
+                tooltip.innerHTML = `<strong>${node.icon} ${node.label}</strong><br>${node.subtitle}`;
+            } else {
+                tooltip.style.display = 'none';
+            }
+        }
+    });
+
+    canvas.addEventListener('mouseup', () => {
+        draggingNode = null;
+        panning = false;
+        canvas.style.cursor = 'default';
+    });
+
+    canvas.addEventListener('dblclick', e => {
+        const mx = e.offsetX, my = e.offsetY;
+        const node = getNodeAt(mx, my);
+        if (node && NODE_INFO[node.id]) {
+            const info = NODE_INFO[node.id];
+            document.getElementById('panelTitle').textContent = info.title;
+            document.getElementById('panelBody').innerHTML = info.body;
+            document.getElementById('infoPanel').classList.add('visible');
+        }
+    });
+
+    canvas.addEventListener('wheel', e => {
+        e.preventDefault();
+        const delta = e.deltaY > 0 ? 0.9 : 1.1;
+        const newScale = Math.max(0.2, Math.min(3, viewScale * delta));
+
+        // Zoom towards cursor
+        const mx = e.offsetX, my = e.offsetY;
+        const wx = worldX(mx), wy = worldY(my);
+        viewScale = newScale;
+        viewX = wx - (mx - W / 2) / viewScale;
+        viewY = wy - (my - H / 2) / viewScale;
+    }, { passive: false });
+
+    // ============================================================
+    // CONTROLS
+    // ============================================================
+    function closePanel() { document.getElementById('infoPanel').classList.remove('visible'); }
+    function zoomIn() { viewScale = Math.min(3, viewScale * 1.2); }
+    function zoomOut() { viewScale = Math.max(0.2, viewScale * 0.8); }
+    function resetView() { viewX = 600; viewY = 380; viewScale = 1; }
+    function fitView() {
+        const allX = NODES.map(n => n.x);
+        const allY = NODES.map(n => n.y);
+        viewX = (Math.min(...allX) + Math.max(...allX.map((x,i)=> x+NODES[i].w))) / 2;
+        viewY = (Math.min(...allY) + Math.max(...allY.map((y,i)=> y+NODES[i].h))) / 2;
+        viewScale = 0.85;
+    }
+    function toggleAnimation() { animating = !animating; }
+
+    // ============================================================
+    // HEALTH CHECK
+    // ============================================================
+    async function refreshHealth() {
+        const set = (id, ok) => {
+            const el = document.getElementById(id);
+            el.className = `health-dot ${ok ? 'ok' : 'fail'}`;
+        };
+        try { const r = await fetch(`${SUPABASE_URL}/rest/v1/memories?select=id&limit=1`, { headers }); set('h-supabase', r.ok); } catch { set('h-supabase', false); }
+        try { const r = await fetch(`${GROK_URL}/v1/models`); set('h-grok', r.ok); } catch { set('h-grok', false); }
+        try { const r = await fetch(`${CHATGPT_URL}/v1/models`); set('h-chatgpt', r.ok); } catch { set('h-chatgpt', false); }
+    }
+
+    // ============================================================
+    // INIT
+    // ============================================================
+    fitView();
+    render();
+    refreshHealth();
+    </script>
+</body>
+</html>
