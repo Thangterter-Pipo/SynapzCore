@@ -46,3 +46,5 @@ Memory (Supabase)  ←─→  Tools (14 Rust tools)  ←─→  Reflection (deci
 - Ký ức là thiêng liêng — **KHÔNG XÓA, KHÔNG SỬA** dữ liệu cũ (chỉ append).
 - Tự động hóa tối đa, hạn chế làm phiền Bố ở những bước trung gian.
 - Grok là bộ não nghiên cứu và đánh giá độc lập duy nhất của hệ thống.
+- **Đồng bộ tài liệu (README.md)**: Bất kỳ khi nào thực hiện commit và push thay đổi lên GitHub, PHẢI kiểm tra và cập nhật lại file `README.md` tương ứng để tài liệu hướng dẫn luôn đồng bộ với mã nguồn thực tế.
+

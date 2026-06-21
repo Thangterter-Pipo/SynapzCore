@@ -400,7 +400,7 @@ let result = registry.execute("search_memory", json!({
 
 ## Cá Nhân Hóa
 
-- **Thay đổi Identity Agent**: Chỉnh sửa file [Antigravity.md](file:///E:/AGT_Brain/Agent_Profiles/Antigravity.md) để cập nhật vai trò, quy tắc hoạt động.
+- **Thay đổi Identity & Quy trình**: Chỉnh sửa file [Antigravity.md](file:///E:/AGT_Brain/Agent_Profiles/Antigravity.md) (hồ sơ danh tính) và [How_We_Work.md](file:///E:/AGT_Brain/Agent_Profiles/How_We_Work.md) (quy trình hoạt động) để cập nhật vai trò và quy tắc làm việc.
 - **Thay đổi Grok Prompts**: Chỉnh sửa [Grok.json](file:///E:/AGT_Brain/Agent_Profiles/Grok.json) để cập nhật system prompt cho từng chế độ (research/think/review/brainstorm).
 - **Thêm tool mới**: Viết async function trong `crates/agt-tools/src/`, đăng ký trong `lib.rs` và expose qua MCP trong `crates/agt-mcp/src/main.rs`.
 
