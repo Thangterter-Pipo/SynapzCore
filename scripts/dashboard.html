@@ -321,12 +321,17 @@
         .tl-time { font-size: 0.68rem; color: var(--text-muted); margin-top: 0.7rem; font-family: 'JetBrains Mono', monospace; }
 
         /* ===== SKILLS ===== */
-        .skill-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(290px, 1fr)); gap: 1rem; }
+        #skill-list { display: block; }
+        .skill-group-head { grid-column: 1 / -1; font-size: 0.95rem; font-weight: 700; color: var(--text-primary); margin: 1.4rem 0 0.8rem; display: flex; align-items: center; gap: 0.5rem; }
+        .skill-group-head:first-child { margin-top: 0; }
+        .skill-group-count { font-size: 0.72rem; font-weight: 700; background: var(--bg-card); border: 1px solid var(--border); color: var(--text-secondary); padding: 0.1rem 0.55rem; border-radius: 999px; }
+        .skill-grid-inner { display: grid; grid-template-columns: repeat(auto-fill, minmax(290px, 1fr)); gap: 1rem; }
         .skill-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: 14px; padding: 1.2rem; transition: all 0.25s; cursor: pointer; }
         .skill-card:hover { border-color: var(--border-hover); transform: translateY(-3px); box-shadow: 0 10px 26px rgba(0,0,0,0.3); }
         .skill-icon { font-size: 1.6rem; margin-bottom: 0.6rem; }
         .skill-title { font-size: 0.92rem; font-weight: 700; margin-bottom: 0.4rem; }
         .skill-preview { font-size: 0.8rem; color: var(--text-secondary); line-height: 1.5; display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; }
+        .skills-sub { font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 0.8rem; }
 
         /* ===== HEALTH ===== */
         .health-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1rem; }
@@ -583,9 +588,10 @@
                 <!-- ===== VIEW: SKILLS ===== -->
                 <div class="view" id="view-skills">
                     <div class="toolbar">
-                        <input class="search-box" id="skill-search" placeholder="🔍 Tìm skill..." onkeydown="if(event.key==='Enter') loadSkills()">
-                        <button class="btn" onclick="loadSkills()">🔄 Tải lại</button>
+                        <input class="search-box" id="skill-search" placeholder="🔍 Tìm skill..." oninput="if(_skillsCache) renderSkills()" onkeydown="if(event.key==='Enter') loadSkills()">
+                        <button class="btn" onclick="_skillsCache=null; loadSkills()">🔄 Tải lại</button>
                     </div>
+                    <div class="skills-sub" id="skills-sub"></div>
                     <div class="skill-grid" id="skill-list"><div class="loading"><div class="spinner"></div><p>Đang tải skills...</p></div></div>
                 </div>
 
@@ -695,10 +701,12 @@
     };
 
     // ============ NAVIGATION ============
+    let _healthTimer = null;
     document.querySelectorAll('.nav-item').forEach(item => {
         item.addEventListener('click', () => switchView(item.dataset.view));
     });
     function switchView(view) {
+        if (_healthTimer) { clearInterval(_healthTimer); _healthTimer = null; }
         document.querySelectorAll('.nav-item').forEach(n => n.classList.toggle('active', n.dataset.view === view));
         document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
         document.getElementById(`view-${view}`).classList.add('active');
@@ -709,7 +717,10 @@
         else if (view === 'memories') loadMemories();
         else if (view === 'timeline') loadTimeline();
         else if (view === 'skills') loadSkills();
-        else if (view === 'health') loadHealth();
+        else if (view === 'health') {
+            loadHealth();
+            _healthTimer = setInterval(loadHealth, 5000);
+        }
     }
 
     // ============ CONFIG ============
@@ -979,26 +990,61 @@
     }
 
     // ============ SKILLS ============
+    // Skills = các SKILL.md thật mà Antigravity đang dùng, được scan vào /data/skills.json
+    // (chạy scripts/generate_skills_index.ps1 để refresh index)
+    let _skillsCache = null;
+    const SKILL_ICONS = { 'Core Skills':'⭐', 'Everything Claude Code (ECC)':'🧩', 'GitNexus':'🕸️' };
+
     async function loadSkills() {
-        if (!configLoaded) { document.getElementById('skill-list').innerHTML = configError(); return; }
         const list = document.getElementById('skill-list');
-        list.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
-        const search = document.getElementById('skill-search').value.trim();
-        let url = `${SUPABASE_URL}/rest/v1/memories?select=*&category=eq.skill&order=importance.desc&limit=60`;
-        if (search) url += `&content=ilike.*${encodeURIComponent(search)}*`;
+        list.innerHTML = '<div class="loading"><div class="spinner"></div><p>Đang tải skills...</p></div>';
         try {
-            const r = await fetch(url, { headers });
-            const skills = await r.json();
-            if (!skills.length) { list.innerHTML = '<div class="empty"><span class="emoji">📚</span>Chưa có skill nào. Dùng <code>save_skill</code> để lưu.</div>'; return; }
-            list.innerHTML = skills.map(s => `
-                <div class="skill-card" onclick="copyMem(${s.id})">
-                    <div class="skill-icon">📚</div>
-                    <div class="skill-title">${escapeHtml((s.content||'').split('\n')[0].slice(0,60))}</div>
-                    <div class="skill-preview">${escapeHtml(s.content||'')}</div>
-                    <div class="mem-footer"><span>⭐ ${s.importance||3} · ${s.agent}</span><span>${formatTime(s.created_at)}</span></div>
-                </div>`).join('');
-        } catch (e) { list.innerHTML = `<div class="empty">❌ ${e.message}</div>`; }
+            if (!_skillsCache) {
+                const r = await fetch('/data/skills.json?t=' + Date.now());
+                if (!r.ok) throw new Error('Không tìm thấy /data/skills.json — chạy scripts/generate_skills_index.ps1');
+                _skillsCache = await r.json();
+            }
+            renderSkills();
+        } catch (e) {
+            list.innerHTML = `<div class="empty"><span class="emoji">📚</span><p>${escapeHtml(e.message)}</p><p style="font-size:0.82rem;color:var(--text-secondary);margin-top:0.5rem">Chạy: <code>powershell -File scripts\\generate_skills_index.ps1</code></p></div>`;
+        }
     }
+
+    function renderSkills() {
+        const list = document.getElementById('skill-list');
+        const data = _skillsCache || { skills: [] };
+        const q = document.getElementById('skill-search').value.trim().toLowerCase();
+        let skills = data.skills || [];
+        if (q) skills = skills.filter(s =>
+            (s.name||'').toLowerCase().includes(q) ||
+            (s.description||'').toLowerCase().includes(q) ||
+            (s.group||'').toLowerCase().includes(q));
+
+        // Cập nhật subtitle với tổng số
+        const sub = document.getElementById('skills-sub');
+        if (sub) sub.textContent = `${skills.length}/${data.total||skills.length} skills · scan lúc ${data.generated_at ? formatTime(data.generated_at) : '—'}`;
+
+        if (!skills.length) { list.innerHTML = '<div class="empty"><span class="emoji">🔍</span>Không có skill khớp.</div>'; return; }
+
+        // Group theo bộ
+        const groups = {};
+        skills.forEach(s => { (groups[s.group] = groups[s.group] || []).push(s); });
+        const order = Object.keys(groups).sort((a,b) => groups[b].length - groups[a].length);
+
+        list.innerHTML = order.map(g => `
+            <div class="skill-group-head">${SKILL_ICONS[g]||'📦'} ${escapeHtml(g)} <span class="skill-group-count">${groups[g].length}</span></div>
+            <div class="skill-grid-inner">
+                ${groups[g].map(s => `
+                    <div class="skill-card" title="${escapeHtml(s.path||'')}" onclick="copyText('${escapeAttr(s.name)}')">
+                        <div class="skill-icon">${SKILL_ICONS[g]||'📚'}</div>
+                        <div class="skill-title">${escapeHtml(s.name)}${s.origin?` <span class="badge badge-cat">${escapeHtml(s.origin)}</span>`:''}</div>
+                        <div class="skill-preview">${escapeHtml(s.description||'(no description)')}</div>
+                    </div>`).join('')}
+            </div>`).join('');
+    }
+
+    function copyText(t) { navigator.clipboard.writeText(t).then(()=>showToast('📋 Đã copy: ' + t)); }
+    function escapeAttr(s) { return (s||'').replace(/'/g,"\\'").replace(/"/g,'&quot;'); }
 
     // ============ HEALTH ============
     async function loadHealth() {
@@ -1042,7 +1088,7 @@
     function setConn(id, ok) { document.getElementById(id).className = `conn-dot ${ok?'ok':'fail'}`; }
 
     // ============ ADD MEMORY ============
-    function openAddModal() { document.getElementById('m-content').value=''; document.getElementById('add-modal').classList.add('active'); }
+    function openAddModal(category) { document.getElementById('m-content').value=''; if (category) document.getElementById('m-category').value = category; document.getElementById('add-modal').classList.add('active'); }
     function closeAddModal() { document.getElementById('add-modal').classList.remove('active'); }
     async function saveMemory() {
         if (!configLoaded) { showToast('❌ Supabase chưa kết nối'); return; }
