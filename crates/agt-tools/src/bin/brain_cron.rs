@@ -32,28 +32,6 @@ fn get_config_path() -> String {
     format!("{base}\\data\\supabase_config.json")
 }
 
-async fn try_auto_refresh_grok_cookie() {
-    let base_dir = std::env::var("AGT_BRAIN_ROOT").unwrap_or_else(|_| "E:\\AGT_Brain".to_string());
-    let script_path = format!("{base_dir}\\scripts\\grok_cookie_refresh\\cookie_refresh_v2.js");
-    println!("⚠️ [HealthCheck] Grok API is down. Attempting auto cookie refresh...");
-
-    match std::process::Command::new("node")
-        .arg(&script_path)
-        .arg("--auto")
-        .output() {
-        Ok(output) => {
-            if output.status.success() {
-                let stdout = String::from_utf8_lossy(&output.stdout);
-                println!("✅ [HealthCheck] Grok cookie auto-refresh finished:\n{}", stdout.trim());
-            } else {
-                let stderr = String::from_utf8_lossy(&output.stderr);
-                eprintln!("❌ [HealthCheck] Grok cookie auto-refresh failed:\n{}", stderr.trim());
-            }
-        }
-        Err(e) => eprintln!("❌ [HealthCheck] Failed to execute node script: {e}"),
-    }
-}
-
 async fn check_health() -> (bool, bool) {
     let client = reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(15))
@@ -72,22 +50,10 @@ async fn check_health() -> (bool, bool) {
     let grok_base = std::env::var("GROK_API_BASE")
         .unwrap_or_else(|_| "http://194.163.174.78:8000".to_string());
     
-    let mut grok_ok = client.get(format!("{grok_base}/v1/models"))
+    let grok_ok = client.get(format!("{grok_base}/v1/models"))
         .send().await
         .map(|r| r.status().is_success())
         .unwrap_or(false);
-
-    if !grok_ok {
-        try_auto_refresh_grok_cookie().await;
-        // Đợi 5 giây để grok2api nhận cấu hình và token mới
-        tokio::time::sleep(std::time::Duration::from_secs(5)).await;
-        
-        // Thử check lại lần 2
-        grok_ok = client.get(format!("{grok_base}/v1/models"))
-            .send().await
-            .map(|r| r.status().is_success())
-            .unwrap_or(false);
-    }
 
     (supabase_ok, grok_ok)
 }
