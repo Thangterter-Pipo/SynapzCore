@@ -275,11 +275,28 @@
     // ============================================================
     // CONFIG
     // ============================================================
-    const SUPABASE_URL = 'YOUR_SUPABASE_URL';
-    const SUPABASE_KEY = 'YOUR_SUPABASE_KEY';
-    const GROK_URL = 'http://127.0.0.1:8000';
+    let SUPABASE_URL = 'YOUR_SUPABASE_URL';
+    let SUPABASE_KEY = 'YOUR_SUPABASE_KEY';
+    let GROK_URL = 'http://127.0.0.1:8000';
     const CHATGPT_URL = 'http://localhost:5005';
-    const headers = { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}`, 'Content-Type': 'application/json' };
+    let headers = { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}`, 'Content-Type': 'application/json' };
+
+    // Auto-load config from local workspace
+    (async function loadConfig() {
+        try {
+            const resp = await fetch('/data/supabase_config.json');
+            if (!resp.ok) return;
+            const config = await resp.json();
+            if (config.supabase_url) SUPABASE_URL = config.supabase_url;
+            if (config.supabase_key) {
+                SUPABASE_KEY = config.supabase_key;
+                headers = { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}`, 'Content-Type': 'application/json' };
+            }
+            if (config.grok_url) GROK_URL = config.grok_url;
+            console.log('✅ Config loaded from supabase_config.json');
+            refreshHealth();
+        } catch (e) { console.warn('Config auto-load failed:', e.message); }
+    })();
 
     // ============================================================
     // CANVAS SETUP
