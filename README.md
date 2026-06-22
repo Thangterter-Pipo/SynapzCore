@@ -2,13 +2,15 @@
 
 **Hệ thống 2-AI có trí nhớ, tự phản tỉnh, và tự điều khiển IDE** — Antigravity (Builder) + Grok (Researcher) chia sẻ memory, tự học, và tự code autonomously.
 
+> 🦉 **Grok Gateway** đã được tách sang repo riêng: [HeimdallProxy](https://github.com/Thangterter-Pipo/HeimdallProxy) — quản lý session, proxy, cookie refresh và MCP tools cho Grok.
+
 ## Tính Năng
 
 - 🧠 **Auto-Context Loader**: Mỗi session mới tự động tải decisions, memories, goals, incidents giúp phục hồi ngữ cảnh lập trình ngay lập tức.
 - 🧠 **Shared Memory**: Supabase cloud — các agents chia sẻ chung bộ nhớ dài hạn (tự động lưu, đo mức độ quan trọng).
 - 🔍 **Semantic Search**: pgvector embeddings + `match_memories()` RPC tìm kiếm ký ức theo ngữ nghĩa.
-- 🔧 **14 Registry Tools** + CDP Controller: File(6) + Shell(1) + Web(2) + Memory(5) + Grok(2).
-- 🔌 **MCP Server**: 10 tools exposed qua rmcp stdio — tích hợp trực tiếp vào VS Code / Cursor / IDE.
+- 🔧 **14 Registry Tools** + CDP Controller: File(6) + Shell(1) + Web(2) + Memory(5).
+- 🔌 **MCP Server**: 8 tools exposed qua rmcp stdio — tích hợp trực tiếp vào VS Code / Cursor / IDE.
 - 🧠 **Grok Subagent**: Research, Think, Review, Brainstorm — powered by Gravity Framework (mặc định dùng `grok-4-heavy`).
 - 🪞 **Daily Self-Reflection**: Tự review memories, decisions, tự phản tỉnh và tạo ra các insights cải thiện hệ thống hằng ngày.
 - 📚 **Skill Library**: Save/recall các patterns, giải pháp tái sử dụng dưới dạng skill có độ quan trọng cao.
@@ -24,7 +26,7 @@ SynapzCore/
 ├── crates/
 │   ├── synapz-memory/     # Supabase REST + sync queue + archive + pgvector
 │   ├── synapz-tools/      # 14 tools + CDP Controller + Goals + Reflection
-│   └── synapz-mcp/        # MCP Server (rmcp, stdio — 10 tools to IDE)
+│   └── synapz-mcp/        # MCP Server (rmcp, stdio — 8 tools to IDE)
 ├── memory/             # decisions/ & incidents/ (append-only local logs)
 ├── data/               # goals.json (Supabase config được ignore bảo mật)
 ├── Agent_Profiles/     # Agent identity, workflow docs, Grok/Gravity config
@@ -40,9 +42,9 @@ graph TD
     User["👨‍💻 Bố (User)"]
     IDE["💻 Antigravity IDE (VS Code Fork)"]
     
-    subgraph RustWorkspace["📦 Rust Workspace (E:\\AGT_Brain)"]
+    subgraph RustWorkspace["📦 SynapzCore (E:\\AGT_Brain)"]
         Builder["🤖 Antigravity (THE BUILDER)<br>Main Agent / Orchestrator"]
-        synapz_mcp["🔌 synapz-mcp<br>MCP Server (rmcp / stdio)"]
+        synapz_mcp["🔌 synapz-mcp<br>MCP Server (rmcp / stdio — 8 tools)"]
         synapz_tools["🔧 synapz-tools<br>14 core tools / CDP Controller"]
         synapz_memory["🧠 synapz-memory<br>Supabase client / Sync queue"]
     end
@@ -53,16 +55,17 @@ graph TD
         LocalQueue["📄 memory_queue.jsonl<br>Local Offline Fallback"]
     end
 
-    subgraph SubagentSystem["🧠 Subagent Interface (Gravity)"]
-        Grok["🦉 Grok 'Gravity' (RESEARCHER)<br>Think / Review / Research"]
+    subgraph HeimdallSystem["🛡️ HeimdallProxy (Separate Repo)"]
+        HeimdallMCP["🔌 heimdall-mcp<br>MCP Server (stdio — 3 tools)"]
         GrokAPI["🌐 grok2api (Local Server)<br>Port 8000"]
         EdgeCDP["🌐 Real Edge Browser (CDP)<br>Auto-refresh Session Cookie"]
-        Proxy["🛡️ Clean Outbound Proxy<br>Bypass Cloudflare 403"]
+        Grok["🦉 Grok 'Gravity' (RESEARCHER)<br>Think / Review / Research"]
     end
 
     %% Connections
     User -->|Ra lệnh / Chat| IDE
     IDE <-->|Giao tiếp via stdio| synapz_mcp
+    IDE <-->|Giao tiếp via stdio| HeimdallMCP
     synapz_mcp <-->|Expose tools| Builder
     Builder -->|Thực thi logic| synapz_tools
     Builder -->|Đọc/Ghi memory| synapz_memory
@@ -71,11 +74,9 @@ graph TD
     synapz_memory -->|Fallback offline| LocalQueue
     Builder -->|Lưu vết hệ thống| LocalLogs
     
-    agt_tools -->|ask_grok.ps1 / HTTP| GrokAPI
+    HeimdallMCP -->|ask_grok / HTTP| GrokAPI
     GrokAPI <-->|Route requests| Grok
     EdgeCDP -->|Trích xuất SSO cookie| GrokAPI
-    GrokAPI -->|Bypass CF 403| Proxy
-    Proxy -->|Đọc/Ghi session| Grok
 
     %% Custom styling
     style User fill:#d4ebf2,stroke:#1a73e8,stroke-width:2px,color:#000
@@ -207,117 +208,20 @@ cargo build --release
 ```
 
 Binaries output:
-- `target/release/agt-mcp` — MCP Server (10 tools stdio)
-- `target/release/ask-grok` — Grok Subagent CLI
+- `target/release/agt-mcp` — MCP Server (8 tools stdio)
 - `target/release/brain-cron` — Autonomous Scheduler (chạy daily reflection & health check)
 
-### Bước 6: Cấu hình Grok Local / Grok Local Configuration (Optional)
+### Bước 6: Cấu hình Grok (Optional)
 
-#### 🇻🇳 Tiếng Việt: Hướng dẫn cấu hình Grok Local
-Để tối ưu hiệu năng và tránh bị Cloudflare chặn (lỗi 403) khi gọi Grok API từ môi trường code, khuyến nghị cài đặt dịch vụ `grok2api` chạy local kết hợp với proxy sạch.
+Grok Gateway đã được tách sang repo riêng **[HeimdallProxy](https://github.com/Thangterter-Pipo/HeimdallProxy)**.
 
-1. **Tải và Cài đặt `grok2api`**:
-   ```bash
-   git clone https://github.com/chenyme/grok2api.git E:\AGT_Brain\grok2api_local
-   cd E:\AGT_Brain\grok2api_local
-   python -m venv venv
-   .\venv\Scripts\pip install .
-   ```
-2. **Thiết lập `.env`**:
-   Sao chép `.env.example` thành `.env` và cấu hình:
-   ```env
-   TZ=Asia/Ho_Chi_Minh
-   SERVER_HOST=127.0.0.1
-   SERVER_PORT=8000
-   ACCOUNT_STORAGE=local
-   DATA_DIR=./data
-   ```
-3. **Cấu hình Proxy để bypass Cloudflare 403**:
-   Khởi chạy dịch vụ một lần để sinh file `data/config.toml` (hoặc tạo thủ công) và cấu hình proxy sạch (ví dụ proxy IPv6 của bạn) ở mục `[proxy.egress]`:
-   ```toml
-   [proxy.egress]
-   mode = "single_proxy"
-   proxy_url = "http://username:password@your_proxy_ip:port/"
-   ```
- 4. **Tự động lấy & làm mới Cookie grok.com qua CDP (Khuyên dùng)**:
-   Để tránh việc phải copy thủ công phức tạp và hay bị hết hạn, hệ thống hỗ trợ tự động hoá hoàn toàn qua Edge thật bằng CDP (Chrome DevTools Protocol):
-   - **Bước 1 (Đăng nhập lần đầu)**: 
-     ```bash
-     cd scripts/grok_cookie_refresh
-     node cookie_refresh_v2.js --login
-     ```
-     Trình duyệt Edge thực sẽ mở ra (dùng profile riêng, không ảnh hưởng Edge chính). Hãy tiến hành đăng nhập vào grok.com bình thường.
-   - **Bước 2 (Trích xuất & Tự động Push)**: 
-     Sau khi đăng nhập thành công, giữ nguyên trình duyệt Edge đang mở và chạy lệnh:
-     ```bash
-     node quick_extract.js
-     ```
-     Script sẽ kết nối vào Edge, lấy cookie SSO mới nhất, backup cục bộ, và tự động gọi API đẩy trực tiếp vào database của `grok2api` local.
-   - **Các lần sau (Tự động Refresh)**:
-     Chỉ cần chạy lệnh:
-     ```bash
-     node cookie_refresh_v2.js --auto
-     ```
-     Hệ thống sẽ chạy ngầm trình duyệt (headless), tự động refresh cookie SSO mới và push trực tiếp cho bạn mà không cần đăng nhập lại.
- 5. **Khởi chạy nhanh**:
-   Bấm đúp chạy tệp [run_grok_local.bat](file:///E:/AGT_Brain/scripts/run_grok_local.bat) để kích hoạt server chạy ẩn cổng 8000. Mật khẩu Admin dashboard mặc định là `grok2api` (nếu dashboard yêu cầu mật khẩu).
+Xem hướng dẫn cài đặt đầy đủ tại [HeimdallProxy README](https://github.com/Thangterter-Pipo/HeimdallProxy#readme).
 
----
-
-#### 🇺🇸 English: Grok Local Configuration Guide
-To optimize API latency and prevent Cloudflare blocking (403 errors) when calling the Grok API from your agent workflows, it is highly recommended to host a local `grok2api` instance mapped to a clean outbound proxy.
-
-1. **Clone & Install `grok2api`**:
-   ```bash
-   git clone https://github.com/chenyme/grok2api.git E:\AGT_Brain\grok2api_local
-   cd E:\AGT_Brain\grok2api_local
-   python -m venv venv
-   .\venv\Scripts\pip install .
-   ```
-2. **Set up `.env`**:
-   Copy `.env.example` to `.env` and set the following parameters:
-   ```env
-   TZ=Asia/Ho_Chi_Minh
-   SERVER_HOST=127.0.0.1
-   SERVER_PORT=8000
-   ACCOUNT_STORAGE=local
-   DATA_DIR=./data
-   ```
-3. **Configure Proxy to Bypass Cloudflare 403**:
-   Launch the service once to generate `data/config.toml` (or create it manually) and edit the `[proxy.egress]` section to route traffic through a clean proxy (e.g., your IPv6 proxy):
-   ```toml
-   [proxy.egress]
-   mode = "single_proxy"
-   proxy_url = "http://username:password@your_proxy_ip:port/"
-   ```
- 4. **Automated Cookie Extract & Refresh via CDP (Recommended)**:
-   Avoid extracting SSO tokens manually. The repo comes with a Chrome DevTools Protocol (CDP) script leveraging Edge:
-   - **Step 1 (First-Time Login)**:
-     ```bash
-     cd scripts/grok_cookie_refresh
-     node cookie_refresh_v2.js --login
-     ```
-     This opens a real Edge browser with a dedicated profile. Log in to grok.com as usual.
-   - **Step 2 (Extract & Push)**:
-     While keeping the Edge browser open, run:
-     ```bash
-     node quick_extract.js
-     ```
-     This connects to the Edge instance via CDP, grabs the latest SSO cookie, backs it up, and pushes it directly into your local `grok2api` instance.
-   - **Subsequent Runs (Auto-Refresh)**:
-     Simply run:
-     ```bash
-     node cookie_refresh_v2.js --auto
-     ```
-     The script will open a headless Edge browser, automatically refresh the token, and push it directly without requiring manual login.
- 5. **Quick Boot**:
-   Double-click the [run_grok_local.bat](file:///E:/AGT_Brain/scripts/run_grok_local.bat) script to run the local server in the background. The default admin panel password is `grok2api`.
-
----
-
-#### 📚 References / Nguồn tham khảo:
-- [chenyme/grok2api](https://github.com/chenyme/grok2api) — Original FastAPI gateway converting Grok Web client capabilities into OpenAI-compatible API endpoints.
-- [xAI API Documentation](https://docs.x.ai/) — Official references for models, features, and specs.
+Tóm tắt:
+1. Clone [HeimdallProxy](https://github.com/Thangterter-Pipo/HeimdallProxy)
+2. Setup grok2api local + proxy bypass Cloudflare
+3. Đăng nhập Edge CDP → extract cookies → auto-refresh
+4. Cấu hình MCP `heimdall-mcp-server` trong IDE
 
 
 
@@ -338,7 +242,7 @@ Tự động chạy trên Windows: Sử dụng file batch `scripts/run_brain_cro
 
 ## Sử Dụng
 
-### MCP Tools (tích hợp trực tiếp vào IDE — 10 tools)
+### SynapzCore MCP Tools (tích hợp trực tiếp vào IDE — 8 tools)
 
 | Tool | Mô tả |
 |------|-------|
@@ -347,33 +251,30 @@ Tự động chạy trên Windows: Sử dụng file batch `scripts/run_brain_cro
 | `add_memory` | Lưu thông tin mới với agent/category/importance tương ứng |
 | `team_memory` | Lấy các ký ức quan trọng gần đây của team làm context |
 | `get_boss_profile` | Truy xuất profile & preferences của Bố (User) |
-| `ask_grok` | Gọi Grok AI subagent (research/think/review/brainstorm) |
-| `grok_health` | Kiểm tra trạng thái hoạt động của Grok API |
 | `daily_reflection` | 🪞 Tự phản tỉnh, tổng hợp quyết định & insight ngày |
 | `save_skill` | 📚 Lưu các patterns/giải pháp tái sử dụng dưới dạng Skill |
 | `recall_skills` | 🔍 Tìm kiếm skill đã lưu theo keyword |
 
+### HeimdallProxy MCP Tools (3 tools — repo riêng)
+
+| Tool | Mô tả |
+|------|-------|
+| `ask_grok` | Gọi Grok AI subagent (research/think/review/brainstorm) |
+| `grok_health` | Kiểm tra trạng thái hoạt động của Grok API |
+| `refresh_cookie` | Kích hoạt Edge CDP auto-refresh cookie & push token mới |
+
+> Xem chi tiết tại [HeimdallProxy](https://github.com/Thangterter-Pipo/HeimdallProxy).
+
 ### Grok Subagent CLI
 
-Chạy trực tiếp từ terminal:
+Grok CLI đã chuyển sang [HeimdallProxy](https://github.com/Thangterter-Pipo/HeimdallProxy). Chạy từ terminal:
 
-```bash
-# Research công nghệ mới
-ask-grok --mode research "Tìm hiểu rmcp framework"
-
-# Quyết định kiến trúc (Grok Heavy suy nghĩ sâu)
-ask-grok --mode think "Nên dùng REST hay gRPC cho microservices?"
-
-# Review code phức tạp
-ask-grok --mode review --code "fn main() { panic!(); }" "Kiểm tra an toàn"
-
-# Brainstorm ý tưởng mới
-ask-grok --mode brainstorm "Cách thiết kế memory system"
-```
-
-Bố cũng có thể sử dụng script PowerShell nhanh:
 ```powershell
-.\scripts\ask_grok.ps1 -Mode research "So sánh các cơ sở dữ liệu Rust"
+# Từ thư mục HeimdallProxy
+.\ask_grok.ps1 -Mode research "Tìm hiểu rmcp framework"
+.\ask_grok.ps1 -Mode think "Nên dùng REST hay gRPC?"
+.\ask_grok.ps1 -Mode review "Review module authentication"
+.\ask_grok.ps1 -Mode brainstorm "Cách cải tiến memory system"
 ```
 
 ### Offline Viewer & Extractor
@@ -427,13 +328,13 @@ let results = mem.recall("Supabase", 5).await?;
 let team = mem.recall_team(10).await?;
 ```
 
-### Tool Registry API (16 tools)
+### Tool Registry API (14 tools)
 
 ```rust
 use synapz_tools::build_default_registry;
 
 let registry = build_default_registry();
-assert_eq!(registry.count(), 16);
+assert_eq!(registry.count(), 14);
 
 // Thực thi tool từ code Rust
 let result = registry.execute("search_memory", json!({
