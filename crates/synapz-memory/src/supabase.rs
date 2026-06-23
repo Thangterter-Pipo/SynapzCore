@@ -469,6 +469,27 @@ impl SupabaseMemory {
         Ok(())
     }
 
+    /// Fetch goals from memories.
+    pub async fn fetch_active_goals(&self, limit: usize) -> Result<Vec<Memory>> {
+        let req = self.client
+            .get(format!("{}/rest/v1/memories", self.url))
+            .query(&[
+                ("select", "*"),
+                ("category", "eq.goal"),
+                ("order", "created_at.desc"),
+                ("limit", &limit.to_string()),
+            ]);
+        let resp = self.auth_headers(req).send().await?;
+
+        if !resp.status().is_success() {
+            let body = resp.text().await.unwrap_or_default();
+            return Err(anyhow!("Supabase fetch goals failed: {body}"));
+        }
+
+        let memories: Vec<Memory> = resp.json().await?;
+        Ok(memories)
+    }
+
     /// Backfill embeddings for memories that don't have one yet.
     /// Processes in batches to avoid rate limiting.
     pub async fn backfill_embeddings(&self, batch_size: usize) -> Result<usize> {

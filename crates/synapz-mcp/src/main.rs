@@ -253,23 +253,64 @@ impl AgentMcp {
             }
         }
 
-        // Section 5: Current goals
-        let goals_path = format!("{base_dir}\\data\\goals.json");
-        if let Ok(content) = std::fs::read_to_string(&goals_path) {
-            if let Ok(goals) = serde_json::from_str::<Vec<serde_json::Value>>(&content) {
+        // Section 5: Current goals (Primary: Supabase, Fallback: Local JSON)
+        let mut goals_loaded = false;
+        if let Ok(mem) = synapz_memory::SupabaseMemory::from_config(&config) {
+            if let Ok(goals) = mem.fetch_active_goals(10).await {
                 let active: Vec<String> = goals.iter()
                     .filter(|g| {
-                        g.get("status").and_then(|v| v.as_str()).unwrap_or("") != "completed"
+                        let status = g.metadata.get("status").and_then(|v| v.as_str()).unwrap_or("active");
+                        status == "active" || status == "pending"
                     })
-                    .take(3)
+                    .take(5)
                     .map(|g| {
-                        let title = g.get("title").and_then(|v| v.as_str()).unwrap_or("?");
-                        let priority = g.get("priority").and_then(|v| v.as_u64()).unwrap_or(0);
-                        format!("  [P{}] {}", priority, title)
+                        let title = g.metadata.get("title").and_then(|v| v.as_str()).unwrap_or(g.content.as_str());
+                        let priority = g.importance;
+                        let steps = g.metadata.get("steps").and_then(|v| v.as_array());
+                        
+                        let steps_str = if let Some(steps) = steps {
+                            let steps_list: Vec<String> = steps.iter().map(|s| {
+                                let text = s.get("text").and_then(|v| v.as_str()).unwrap_or("");
+                                let done = s.get("done").and_then(|v| v.as_bool()).unwrap_or(false);
+                                format!("    - [{}] {}", if done { "x" } else { " " }, text)
+                            }).collect();
+                            if steps_list.is_empty() {
+                                "".to_string()
+                            } else {
+                                format!("\n{}", steps_list.join("\n"))
+                            }
+                        } else {
+                            "".to_string()
+                        };
+
+                        format!("  [P{}] {}: {}{}", priority, title, g.content, steps_str)
                     })
                     .collect();
                 if !active.is_empty() {
-                    sections.push(format!("🎯 ACTIVE GOALS ({}):\n{}", active.len(), active.join("\n")));
+                    sections.push(format!("🎯 ACTIVE GOALS ({}):\n{}", active.len(), active.join("\n\n")));
+                    goals_loaded = true;
+                }
+            }
+        }
+
+        if !goals_loaded {
+            let goals_path = format!("{base_dir}\\data\\goals.json");
+            if let Ok(content) = std::fs::read_to_string(&goals_path) {
+                if let Ok(goals) = serde_json::from_str::<Vec<serde_json::Value>>(&content) {
+                    let active: Vec<String> = goals.iter()
+                        .filter(|g| {
+                            g.get("status").and_then(|v| v.as_str()).unwrap_or("") != "completed"
+                        })
+                        .take(3)
+                        .map(|g| {
+                            let title = g.get("title").and_then(|v| v.as_str()).unwrap_or("?");
+                            let priority = g.get("priority").and_then(|v| v.as_u64()).unwrap_or(0);
+                            format!("  [P{}] {}", priority, title)
+                        })
+                        .collect();
+                    if !active.is_empty() {
+                        sections.push(format!("🎯 ACTIVE GOALS ({}):\n{}", active.len(), active.join("\n")));
+                    }
                 }
             }
         }
@@ -323,6 +364,22 @@ impl AgentMcp {
                     digest_parts.push(format!("🤖 AGENTS: {}", dist.join(", ")));
                 }
                 Err(e) => digest_parts.push(format!("⚠️ Memory error: {e}")),
+            }
+            // Count completed goals today
+            if let Ok(goals) = mem.fetch_active_goals(30).await {
+                let completed_today = goals.iter()
+                    .filter(|g| {
+                        let status = g.metadata.get("status").and_then(|v| v.as_str()).unwrap_or("");
+                        status == "completed"
+                    })
+                    .filter(|g| {
+                        let comp_at = g.metadata.get("completed_at").and_then(|v| v.as_str()).unwrap_or("");
+                        comp_at.starts_with(&today)
+                    })
+                    .count();
+                if completed_today > 0 {
+                    digest_parts.push(format!("🎯 MISSIONS: {} completed today", completed_today));
+                }
             }
         }
 

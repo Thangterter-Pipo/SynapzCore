@@ -120,7 +120,7 @@ Hệ thống hoạt động với 2 AI phối hợp:
 
 ---
 
-## CDP Autonomous Control (LazyGravity)
+## CDP Autonomous Control (Built-in)
 
 - **Module**: `crates/synapz-tools/src/cdp_controller.rs`
 - **Requirement**: Launch IDE với flag `--remote-debugging-port=9333`

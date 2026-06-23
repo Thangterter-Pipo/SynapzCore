@@ -16,8 +16,10 @@
 - 📚 **Skill Library**: Save/recall các patterns, giải pháp tái sử dụng dưới dạng skill có độ quan trọng cao.
 - 🤖 **CDP Autonomous Mode**: Tự điều khiển IDE qua Chrome DevTools Protocol (tự động nhập prompt, kiểm tra trạng thái sinh, tự Accept code edits).
 - 📦 **Memory Archive**: Tự động lưu trữ (archive) các ký ức cũ có độ quan trọng thấp để tối ưu hiệu năng.
-- 📊 **Admin Dashboard**: Web-based memory browser + stats + health checks (`scripts/dashboard.html`).
-- 📝 **Offline Knowledge Extractor**: Tự phân tích conversation logs và tạo ra stats JSON cùng trang HTML viewer offline (`scripts/extract_knowledge_v2.js`).
+- 📊 **Admin Dashboard**: Web-based command center (`scripts/dashboard.html`) — memory browser, analytics, timeline, skills, system health, Antigravity Chat (CDP inject), Agent Coordination panel.
+- 🤝 **Multi-Agent Coordination**: `scripts/coordination.py` — file locking, task queue, inter-agent messaging, heartbeat registry. HTTP API tại `/api/coord/*`. Bất kỳ AI nào tích hợp qua `agent_sdk.py` (Python) hoặc cURL.
+- ⚡ **Agent SDK**: `scripts/agent_sdk.py` — `AgentSession` class: auto-register, heartbeat daemon, `with agent.editing("file"):` context manager (claim/retry/release), `claim_next_task()`, SSE realtime updates.
+- 🔴 **SSE Push**: Dashboard nhận realtime events từ server (`/api/events`) — không cần poll, update tức thì khi agent nào thay đổi state.
 
 ## Kiến Trúc
 

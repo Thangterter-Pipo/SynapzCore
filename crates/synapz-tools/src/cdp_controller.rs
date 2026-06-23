@@ -3,8 +3,6 @@
 //! Connects to Antigravity IDE workbench (launched with --remote-debugging-port=9333)
 //! and provides programmatic control: inject prompts, monitor responses,
 //! switch models, auto-accept edits.
-//!
-//! Based on LazyGravity analysis (2026-04-17).
 
 use anyhow::{anyhow, Result};
 use futures_util::{SinkExt, StreamExt};
