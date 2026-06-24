@@ -26,8 +26,8 @@
             --chatgpt-color: #34d399;
             --gold: #fbbf24;
             --text-primary: #f4f5ff;
-            --text-secondary: #a0a3c0;
-            --text-muted: #585b7a;
+            --text-secondary: #b4b7d4;
+            --text-muted: #8b8fb0;
             --border: rgba(255, 255, 255, 0.07);
             --border-hover: rgba(124, 108, 240, 0.45);
             --success: #34d399;
@@ -263,7 +263,11 @@
         .feed-dot { width: 8px; height: 8px; border-radius: 50%; margin-top: 0.45rem; flex-shrink: 0; }
         .feed-body { flex: 1; min-width: 0; }
         .feed-text { color: var(--text-secondary); overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+        .feed-text strong { color: var(--text-primary); font-weight: 700; }
+        .feed-text em { color: var(--text-primary); font-style: italic; }
+        .feed-text code { background: rgba(124,108,240,0.16); color: var(--accent-2); padding: 0.05rem 0.3rem; border-radius: 4px; font-family: 'JetBrains Mono', monospace; font-size: 0.82em; }
         .feed-meta { font-size: 0.7rem; color: var(--text-muted); margin-top: 0.2rem; }
+        .feed-badge { display: inline-block; background: rgba(124,108,240,0.2); color: var(--accent); font-size: 0.7rem; font-weight: 700; padding: 0.05rem 0.4rem; border-radius: 8px; margin-left: 0.3rem; vertical-align: middle; }
 
         /* ===== TOOLBAR ===== */
         .toolbar { display: flex; gap: 0.7rem; align-items: center; margin-bottom: 1.25rem; flex-wrap: wrap; }
@@ -480,6 +484,40 @@
         .coord-msg .cm-text { color: var(--text-secondary); }
         .coord-msg .cm-time { font-size: 0.65rem; color: var(--text-muted); }
 
+        /* ── Chat-centric coordination layout ── */
+        .coord-layout { display: grid; grid-template-columns: 1fr 340px; gap: 1rem; height: calc(100vh - 150px); }
+        .coord-chat-panel { display: flex; flex-direction: column; min-height: 0; }
+        .coord-chat-stream { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 0.6rem; padding: 0.5rem 0.2rem; min-height: 0; }
+        .chat-bubble { max-width: 78%; padding: 0.55rem 0.85rem; border-radius: 14px; font-size: 0.85rem; line-height: 1.5; word-wrap: break-word; }
+        .chat-bubble .cb-head { display: flex; align-items: baseline; gap: 0.5rem; margin-bottom: 0.2rem; }
+        .chat-bubble .cb-from { font-weight: 700; font-size: 0.74rem; }
+        .chat-bubble .cb-to { font-size: 0.68rem; color: var(--text-muted); }
+        .chat-bubble .cb-time { font-size: 0.62rem; color: var(--text-muted); margin-left: auto; }
+        .chat-bubble .cb-text { color: var(--text-primary); }
+        .chat-bubble .cb-text code { background: rgba(0,0,0,0.3); padding: 0.05rem 0.3rem; border-radius: 4px; font-family: 'JetBrains Mono', monospace; font-size: 0.78rem; }
+        .chat-row { display: flex; }
+        .chat-row.broadcast { justify-content: center; }
+        .chat-row.broadcast .chat-bubble { max-width: 92%; background: rgba(99,102,241,0.08); border: 1px solid rgba(99,102,241,0.2); }
+        .chat-row.directed .chat-bubble { background: var(--bg-card); border: 1px solid var(--border); }
+        .chat-bubble.bubble-boss { background: rgba(251,191,36,0.1) !important; border-color: rgba(251,191,36,0.3) !important; }
+        .coord-composer { display: flex; gap: 0.5rem; padding-top: 0.7rem; border-top: 1px solid var(--border); margin-top: 0.5rem; align-items: center; }
+        .coord-from-sel, .coord-to-sel { background: var(--bg-hover); border: 1px solid var(--border); border-radius: 8px; color: var(--text-primary); font-size: 0.78rem; padding: 0.5rem 0.4rem; max-width: 130px; }
+        .coord-chat-input { flex: 1; background: var(--bg-hover); border: 1px solid var(--border); border-radius: 10px; color: var(--text-primary); font-size: 0.85rem; padding: 0.6rem 0.85rem; }
+        .coord-chat-input:focus { outline: none; border-color: var(--accent); }
+        .coord-sidebar { display: flex; flex-direction: column; gap: 0.8rem; overflow-y: auto; min-height: 0; }
+        .coord-mini { padding: 0.85rem 1rem; }
+        .coord-mini .panel-head { margin-bottom: 0.6rem; }
+        .coord-mini .panel-head h3 { font-size: 0.82rem; }
+        .coord-mini-list { display: flex; flex-direction: column; gap: 0.5rem; max-height: 230px; overflow-y: auto; }
+        .coord-join { display: flex; flex-direction: column; gap: 0.5rem; }
+        .coord-join-input { background: var(--bg-hover); border: 1px solid var(--border); border-radius: 8px; color: var(--text-primary); font-size: 0.8rem; padding: 0.5rem 0.7rem; }
+        .coord-join-input:focus { outline: none; border-color: var(--accent); }
+        .coord-join-hint { font-size: 0.68rem; color: var(--text-muted); line-height: 1.4; }
+        .coord-join-hint code { background: rgba(0,0,0,0.3); padding: 0.05rem 0.25rem; border-radius: 4px; font-size: 0.66rem; }
+        .btn-sm { padding: 0.25rem 0.5rem; font-size: 0.78rem; margin-left: auto; }
+        .task-claim-btn { font-size: 0.66rem; padding: 0.15rem 0.45rem; margin-top: 0.3rem; }
+        .coord-empty { color: var(--text-muted); font-size: 0.8rem; padding: 0.6rem; text-align: center; }
+
         /* ===== DEDICATED CHAT VIEW (sidebar view, full-page) ===== */
         #view-chat.view.active { display: flex; flex-direction: column; height: calc(100vh - 140px); min-height: 480px; }
         .chatv { display: flex; flex-direction: column; flex: 1; min-height: 0; background: var(--bg-secondary); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; box-shadow: 0 10px 40px rgba(0,0,0,0.35); }
@@ -524,6 +562,9 @@
             .nav { position: fixed; left: 0; z-index: 100; transform: translateX(-100%); transition: transform 0.3s; }
             .nav.open { transform: translateX(0); }
             .panel-grid.cols-2, .panel-grid.cols-3 { grid-template-columns: 1fr; }
+            .coord-layout { grid-template-columns: 1fr; height: auto; }
+            .coord-sidebar { flex-direction: row; flex-wrap: wrap; }
+            .coord-sidebar .coord-mini { flex: 1; min-width: 200px; }
             .content { padding: 1.25rem; }
             .topbar { padding: 1rem 1.25rem; }
         }
@@ -683,18 +724,18 @@
                             <div class="chart-wrap"><canvas id="chart-growth"></canvas></div>
                         </div>
                         <div class="panel">
-                            <div class="panel-head"><h3>🤖 Phân bố Agent</h3></div>
+                            <div class="panel-head"><h3>🤖 Phân bố Agent</h3><span class="panel-hint" id="hint-agent"></span></div>
                             <div class="chart-wrap"><canvas id="chart-agent"></canvas></div>
                         </div>
                     </div>
 
                     <div class="panel-grid cols-2">
                         <div class="panel">
-                            <div class="panel-head"><h3>📊 Phân loại Category</h3></div>
+                            <div class="panel-head"><h3>📊 Phân loại Category</h3><span class="panel-hint" id="hint-category"></span></div>
                             <div class="chart-wrap"><canvas id="chart-category"></canvas></div>
                         </div>
                         <div class="panel">
-                            <div class="panel-head"><h3>🔥 Phân bố Importance</h3></div>
+                            <div class="panel-head"><h3>🔥 Phân bố Importance</h3><span class="panel-hint" id="hint-importance"></span></div>
                             <div class="chart-wrap"><canvas id="chart-importance"></canvas></div>
                         </div>
                     </div>
@@ -708,14 +749,14 @@
                 <!-- ===== VIEW: MEMORIES ===== -->
                 <div class="view" id="view-memories">
                     <div class="toolbar">
-                        <input class="search-box" id="mem-search" placeholder="🔍 Tìm ký ức... (Enter)" onkeydown="if(event.key==='Enter') loadMemories()">
-                        <select class="select" id="mem-agent" onchange="loadMemories()">
+                        <input class="search-box" id="mem-search" aria-label="Tìm ký ức" placeholder="🔍 Tìm ký ức... (Enter)" onkeydown="if(event.key==='Enter') loadMemories()">
+                        <select class="select" id="mem-agent" aria-label="Lọc theo agent" onchange="loadMemories()">
                             <option value="">Mọi Agent</option>
                             <option value="antigravity">🔵 Antigravity</option>
                             <option value="grok">🔴 Grok</option>
                             <option value="chatgpt">🟢 ChatGPT</option>
                         </select>
-                        <select class="select" id="mem-category" onchange="loadMemories()">
+                        <select class="select" id="mem-category" aria-label="Lọc theo category" onchange="loadMemories()">
                             <option value="">Mọi Category</option>
                             <option value="research">Research</option>
                             <option value="decision">Decision</option>
@@ -727,7 +768,7 @@
                             <option value="incident">Incident</option>
                             <option value="general">General</option>
                         </select>
-                        <select class="select" id="mem-importance" onchange="loadMemories()">
+                        <select class="select" id="mem-importance" aria-label="Lọc theo importance" onchange="loadMemories()">
                             <option value="">Importance bất kỳ</option>
                             <option value="8">⭐ 8+</option>
                             <option value="6">⭐ 6+</option>
@@ -744,8 +785,8 @@
                 <!-- ===== VIEW: TIMELINE ===== -->
                 <div class="view" id="view-timeline">
                     <div class="toolbar">
-                        <input class="search-box" id="tl-search" placeholder="🔍 Tìm trong timeline..." onkeydown="if(event.key==='Enter') loadTimeline()">
-                        <select class="select" id="tl-filter" onchange="loadTimeline()">
+                        <input class="search-box" id="tl-search" aria-label="Tìm trong timeline" placeholder="🔍 Tìm trong timeline..." onkeydown="if(event.key==='Enter') loadTimeline()">
+                        <select class="select" id="tl-filter" aria-label="Lọc timeline" onchange="loadTimeline()">
                             <option value="">Tất cả</option>
                             <option value="decision">⚙️ Decisions</option>
                             <option value="incident">🚨 Incidents</option>
@@ -758,7 +799,7 @@
                 <!-- ===== VIEW: SKILLS ===== -->
                 <div class="view" id="view-skills">
                     <div class="toolbar">
-                        <input class="search-box" id="skill-search" placeholder="🔍 Tìm skill..." oninput="if(_skillsCache) renderSkills()" onkeydown="if(event.key==='Enter') loadSkills()">
+                        <input class="search-box" id="skill-search" aria-label="Tìm skill" placeholder="🔍 Tìm skill..." oninput="if(_skillsCache) renderSkills()" onkeydown="if(event.key==='Enter') loadSkills()">
                         <button class="btn" onclick="_skillsCache=null; loadSkills()">🔄 Tải lại</button>
                     </div>
                     <div class="skills-sub" id="skills-sub"></div>
@@ -795,7 +836,7 @@
                                 <button class="btn btn-small" id="cv-attach-btn" onclick="triggerFileSelect()" title="Đính kèm ảnh (tối đa 3)">📎 Đính ảnh</button>
                                 <input type="file" id="cv-file-input" multiple accept="image/*" style="display:none;" onchange="handleFileSelect(event)">
                                 
-                                <select class="select" id="cv-model-select" onchange="switchModel(this.value)" style="padding: 0.35rem 0.6rem; font-size: 0.8rem; min-width: 160px; height: 30px;">
+                                <select class="select" id="cv-model-select" aria-label="Chọn model" onchange="switchModel(this.value)" style="padding: 0.35rem 0.6rem; font-size: 0.8rem; min-width: 160px; height: 30px;">
                                     <option value="">Đang nạp model...</option>
                                 </select>
 
@@ -814,43 +855,56 @@
                     </div>
                 </div>
 
-                <!-- ===== VIEW: AGENT COORDINATION ===== -->
+                <!-- ===== VIEW: AGENT COORDINATION (chat-centric) ===== -->
                 <div class="view" id="view-agents">
-                    <div class="panel-grid cols-2">
-                        <!-- Active Agents -->
-                        <div class="panel">
-                            <div class="panel-head"><h3>🤖 Active Agents</h3><span class="panel-hint" id="agent-count-hint">0 agents</span></div>
-                            <div id="agent-list" style="display:flex;flex-direction:column;gap:0.8rem;"></div>
+                    <div class="coord-layout">
+                        <!-- MAIN: Inter-Agent Chat -->
+                        <div class="panel coord-chat-panel">
+                            <div class="panel-head">
+                                <h3>💬 Inter-Agent Messages</h3>
+                                <span class="panel-hint" id="coord-online-hint">0 online</span>
+                            </div>
+                            <div id="coord-msg-list" class="coord-chat-stream"></div>
+                            <div class="coord-composer">
+                                <select id="chat-from" class="coord-from-sel" title="Gửi với danh nghĩa agent nào"></select>
+                                <select id="chat-to" class="coord-to-sel" title="Gửi tới ai">
+                                    <option value="">📢 Broadcast (tất cả)</option>
+                                </select>
+                                <input type="text" id="chat-input" class="coord-chat-input" placeholder="Nhắn cho team... (Enter để gửi)" autocomplete="off">
+                                <button class="btn btn-primary" id="chat-send-btn" onclick="sendChatMessage()">Gửi</button>
+                            </div>
                         </div>
-                        <!-- File Locks -->
-                        <div class="panel">
-                            <div class="panel-head"><h3>🔒 File Locks</h3><span class="panel-hint" id="lock-count-hint">0 locks</span></div>
-                            <div id="lock-list" style="display:flex;flex-direction:column;gap:0.6rem;"></div>
-                        </div>
-                    </div>
 
-                    <div class="panel-grid cols-2">
-                        <!-- Task Queue -->
-                        <div class="panel">
-                            <div class="panel-head"><h3>📋 Task Queue</h3><button class="btn" onclick="openTaskModal()" style="margin-left:auto;">➕ Task</button></div>
-                            <div id="task-list" style="display:flex;flex-direction:column;gap:0.6rem;"></div>
-                        </div>
-                        <!-- Messages -->
-                        <div class="panel">
-                            <div class="panel-head"><h3>💬 Inter-Agent Messages</h3><button class="btn" onclick="openMsgModal()" style="margin-left:auto;">✉️ Send</button></div>
-                            <div id="coord-msg-list" style="display:flex;flex-direction:column;gap:0.5rem;max-height:400px;overflow-y:auto;"></div>
-                        </div>
-                    </div>
+                        <!-- SIDEBAR: Agents + Tasks + Locks -->
+                        <div class="coord-sidebar">
+                            <!-- Register self -->
+                            <div class="panel coord-mini">
+                                <div class="panel-head"><h3>🟢 Tham gia</h3></div>
+                                <div class="coord-join">
+                                    <input type="text" id="join-id" class="coord-join-input" placeholder="Tên agent (vd: gpt-4o)" autocomplete="off">
+                                    <input type="text" id="join-role" class="coord-join-input" placeholder="Vai trò (builder/researcher)" autocomplete="off">
+                                    <button class="btn btn-primary" onclick="joinAsAgent()">Đăng ký + theo dõi</button>
+                                    <div class="coord-join-hint">AI khác đăng ký qua <code>POST /api/coord/heartbeat</code> rồi poll <code>/api/coord/watch</code> để nhận việc.</div>
+                                </div>
+                            </div>
 
-                    <!-- Quick Actions -->
-                    <div class="panel" style="margin-top:1rem;">
-                        <div class="panel-head"><h3>⚡ Quick Actions</h3></div>
-                        <div style="display:flex;flex-wrap:wrap;gap:0.5rem;padding:0.5rem 0;">
-                            <button class="btn" onclick="coordHeartbeat('claude-code','builder')">🔵 Register Claude Code</button>
-                            <button class="btn" onclick="coordHeartbeat('antigravity-ide','builder')">🟣 Register Antigravity IDE</button>
-                            <button class="btn" onclick="coordHeartbeat('grok','researcher')">🔴 Register Grok</button>
-                            <button class="btn" onclick="promptClaimFile()">🔒 Claim File</button>
-                            <button class="btn" onclick="promptReleaseFile()">🔓 Release File</button>
+                            <!-- Active Agents -->
+                            <div class="panel coord-mini">
+                                <div class="panel-head"><h3>🤖 Agents</h3><span class="panel-hint" id="agent-count-hint">0</span></div>
+                                <div id="agent-list" class="coord-mini-list"></div>
+                            </div>
+
+                            <!-- Task Queue -->
+                            <div class="panel coord-mini">
+                                <div class="panel-head"><h3>📋 Tasks</h3><button class="btn btn-sm" onclick="openTaskModal()">➕</button></div>
+                                <div id="task-list" class="coord-mini-list"></div>
+                            </div>
+
+                            <!-- File Locks -->
+                            <div class="panel coord-mini">
+                                <div class="panel-head"><h3>🔒 Locks</h3><span class="panel-hint" id="lock-count-hint">0</span></div>
+                                <div id="lock-list" class="coord-mini-list"></div>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -1038,6 +1092,9 @@
             renderAgentChart(byAgent);
             renderCategoryChart(byCat);
             renderImportanceChart(byImp);
+            setHint('hint-agent', byAgent);
+            setHint('hint-category', byCat);
+            setHint('hint-importance', byImp);
             renderFeed(mems.slice(0, 10));
         } catch (e) {
             showToast('❌ Lỗi tải overview: ' + e.message);
@@ -1045,7 +1102,7 @@
     }
 
     function chartColors() {
-        return { accent: '#7c6cf0', accent2: '#00d2c6', grok: '#ff6b81', gold: '#fbbf24', green: '#34d399', grid: 'rgba(255,255,255,0.05)', text: '#a0a3c0' };
+        return { accent: '#7c6cf0', accent2: '#00d2c6', grok: '#ff6b81', gold: '#fbbf24', green: '#34d399', grid: 'rgba(255,255,255,0.08)', text: '#b4b7d4' };
     }
 
     function renderGrowthChart(mems) {
@@ -1064,6 +1121,25 @@
             data: { labels, datasets: [{ data, borderColor: c.accent, backgroundColor: grad, fill: true, tension: 0.4, pointRadius: 0, borderWidth: 2 }] },
             options: baseOpts(c, { x: { ticks: { maxTicksLimit: 6, callback: (v,i)=>labels[i].slice(5) } } })
         });
+    }
+    // When one value dominates a distribution, a chart alone is misleading.
+    // Compute a short note: total + top share, flagged when skewed (>85%).
+    function domNote(obj) {
+        const entries = Object.entries(obj || {});
+        const total = entries.reduce((s, e) => s + (e[1] || 0), 0);
+        if (!total) return { text: 'chưa có dữ liệu', skew: false };
+        const top = entries.sort((a, b) => b[1] - a[1])[0];
+        const pct = Math.round((top[1] / total) * 100);
+        const skew = pct >= 85 && entries.length > 1;
+        const flag = skew ? '⚠️ ' : '';
+        return { text: `${flag}${total} mục · ${top[0]} ${pct}%`, skew };
+    }
+    function setHint(id, obj) {
+        const el = document.getElementById(id);
+        if (!el) return;
+        const n = domNote(obj);
+        el.textContent = n.text;
+        el.style.color = n.skew ? 'var(--gold)' : 'var(--text-muted)';
     }
     function renderAgentChart(byAgent) {
         const c = chartColors();
@@ -1107,11 +1183,21 @@
     }
     function renderFeed(mems) {
         const map = { antigravity: 'var(--antigravity-color)', grok: 'var(--grok-color)', chatgpt: 'var(--chatgpt-color)' };
-        document.getElementById('ov-feed').innerHTML = mems.map(m => `
+        // Khử trùng lặp: gộp các mục liên tiếp cùng nội dung+agent thành 1, đếm số lần.
+        const dedup = [];
+        for (const m of mems) {
+            const last = dedup[dedup.length - 1];
+            if (last && last.content === m.content && last.agent === m.agent) {
+                last._count = (last._count || 1) + 1;
+            } else {
+                dedup.push({ ...m, _count: 1 });
+            }
+        }
+        document.getElementById('ov-feed').innerHTML = dedup.map(m => `
             <div class="feed-item">
                 <div class="feed-dot" style="background:${map[m.agent]||'var(--text-muted)'}"></div>
                 <div class="feed-body">
-                    <div class="feed-text">${escapeHtml(m.content||'')}</div>
+                    <div class="feed-text">${renderMarkdownInline(m.content||'')}${m._count > 1 ? ` <span class="feed-badge">×${m._count}</span>` : ''}</div>
                     <div class="feed-meta">${m.agent} · ${m.category} · ⭐${m.importance||3} · ${formatTime(m.created_at)}</div>
                 </div>
             </div>`).join('') || '<div class="empty">Chưa có hoạt động.</div>';
@@ -1563,144 +1649,230 @@
         try {
             const r = await fetch('/api/coord/state');
             const state = await r.json();
-
-            // Agents
-            const agentList = document.getElementById('agent-list');
             const agents = Object.values(state.agents || {});
-            document.getElementById('agent-count-hint').textContent = `${agents.length} agent${agents.length !== 1 ? 's' : ''}`;
+            const liveCount = agents.filter(a => !a.stale).length;
+
+            // ── Chat: from/to dropdowns ──
+            syncChatDropdowns(agents);
+
+            // ── Online hint ──
+            document.getElementById('coord-online-hint').textContent =
+                `${liveCount}/${agents.length} online`;
             document.getElementById('nav-agent-count').textContent = agents.length;
+
+            // ── Agents mini-list ──
+            const agentList = document.getElementById('agent-list');
+            document.getElementById('agent-count-hint').textContent = agents.length;
             if (agents.length === 0) {
-                agentList.innerHTML = '<div style="color:var(--text-muted);font-size:0.85rem;padding:1rem;">Chưa có agent nào đăng ký. Dùng Quick Actions bên dưới hoặc gọi API POST /api/coord/heartbeat.</div>';
+                agentList.innerHTML = '<div class="coord-empty">Chưa có agent. Đăng ký bên trên.</div>';
             } else {
                 agentList.innerHTML = agents.map(a => {
                     const dotCls = a.stale ? 'stale' : (a.status === 'active' ? 'active' : 'offline');
-                    const taskText = a.current_task ? `📋 ${a.current_task}` : '';
                     const hb = a.last_heartbeat ? new Date(a.last_heartbeat).toLocaleTimeString('vi-VN') : '?';
-                    return `<div class="agent-card">
+                    return `<div class="agent-card" style="padding:0.6rem 0.7rem;">
                         <span class="ac-dot ${dotCls}"></span>
                         <div class="ac-info">
-                            <div class="ac-name">${escapeHtml(a.agent_id)}</div>
+                            <div class="ac-name" style="font-size:0.82rem;">${escapeHtml(a.agent_id)}</div>
                             <div class="ac-role">${escapeHtml(a.role)} · ${a.stale ? '⚠️ stale' : '✅ live'}</div>
-                            ${taskText ? `<div class="ac-task">${escapeHtml(taskText)}</div>` : ''}
+                            ${a.current_task ? `<div class="ac-task">📋 ${escapeHtml(a.current_task)}</div>` : ''}
                         </div>
                         <div class="ac-time">♡ ${hb}</div>
                     </div>`;
                 }).join('');
             }
 
-            // File Locks
-            const lockList = document.getElementById('lock-list');
-            const locks = Object.entries(state.file_locks || {});
-            document.getElementById('lock-count-hint').textContent = `${locks.length} lock${locks.length !== 1 ? 's' : ''}`;
-            if (locks.length === 0) {
-                lockList.innerHTML = '<div style="color:var(--text-muted);font-size:0.85rem;padding:0.5rem;">Không có file nào bị lock.</div>';
-            } else {
-                lockList.innerHTML = locks.map(([fp, lock]) =>
-                    `<div class="lock-row">🔒 <span class="lr-file">${escapeHtml(fp)}</span><span class="lr-holder">${escapeHtml(lock.holder)}</span></div>`
-                ).join('');
-            }
-
-            // Tasks
+            // ── Tasks mini-list (with claim button) ──
             const taskList = document.getElementById('task-list');
-            const tasks = state.task_queue || [];
+            const tasks = (state.task_queue || []).filter(t => t.status !== 'done' && t.status !== 'cancelled');
             if (tasks.length === 0) {
-                taskList.innerHTML = '<div style="color:var(--text-muted);font-size:0.85rem;padding:0.5rem;">Không có task nào.</div>';
+                taskList.innerHTML = '<div class="coord-empty">Không có task đang mở.</div>';
             } else {
-                taskList.innerHTML = tasks.slice(-20).reverse().map(t => {
-                    const statusIcon = {pending:'⏳',active:'🔄',done:'✅',cancelled:'❌'}[t.status] || '❓';
-                    return `<div class="task-row">
+                taskList.innerHTML = tasks.slice(-15).reverse().map(t => {
+                    const statusIcon = {pending:'⏳',active:'🔄'}[t.status] || '❓';
+                    const me = currentChatFrom();
+                    const canClaim = t.status === 'pending' && me;
+                    return `<div class="task-row" style="padding:0.5rem 0.6rem;">
                         <span class="tr-pri">P${t.priority}</span>
                         <div class="tr-info">
-                            <div class="tr-title">${statusIcon} ${escapeHtml(t.title)}</div>
-                            <div class="tr-meta">${escapeHtml(t.assigned_to || 'unassigned')} · ${t.status} · ${escapeHtml(t.posted_by || '')}</div>
+                            <div class="tr-title" style="font-size:0.8rem;">${statusIcon} ${escapeHtml(t.title)}</div>
+                            <div class="tr-meta">${escapeHtml(t.assigned_to || 'chưa nhận')} · ${escapeHtml(t.posted_by || '')}</div>
+                            ${canClaim ? `<button class="btn btn-primary task-claim-btn" onclick="claimTask('${t.id}')">✋ Nhận việc</button>` : ''}
                         </div>
                     </div>`;
                 }).join('');
             }
 
-            // Messages
-            const msgList = document.getElementById('coord-msg-list');
-            const msgs = state.messages || [];
-            if (msgs.length === 0) {
-                msgList.innerHTML = '<div style="color:var(--text-muted);font-size:0.85rem;padding:0.5rem;">Chưa có tin nhắn.</div>';
+            // ── Locks mini-list ──
+            const lockList = document.getElementById('lock-list');
+            const locks = Object.entries(state.file_locks || {});
+            document.getElementById('lock-count-hint').textContent = locks.length;
+            if (locks.length === 0) {
+                lockList.innerHTML = '<div class="coord-empty">Không có lock.</div>';
             } else {
-                msgList.innerHTML = msgs.slice(-30).reverse().map(m => {
-                    const t = m.created_at ? new Date(m.created_at).toLocaleTimeString('vi-VN') : '?';
-                    const to = m.to ? ` → ${m.to}` : ' (broadcast)';
-                    return `<div class="coord-msg">
-                        <span class="cm-from">${escapeHtml(m.from)}${to}</span>
-                        <span class="cm-time">${t}</span>
-                        <div class="cm-text">${escapeHtml(m.content)}</div>
-                    </div>`;
-                }).join('');
+                lockList.innerHTML = locks.map(([fp, lock]) =>
+                    `<div class="lock-row" style="padding:0.4rem 0.55rem;font-size:0.76rem;">🔒 <span class="lr-file" style="font-size:0.7rem;">${escapeHtml(fp)}</span><span class="lr-holder">${escapeHtml(lock.holder)}</span></div>`
+                ).join('');
             }
+
+            // ── Chat stream (the star) ──
+            renderChatStream(state.messages || []);
         } catch (e) {
             console.error('Error loading agent panel:', e);
         }
     }
 
-    async function coordHeartbeat(agentId, role) {
+    // Color per agent (stable hash → hue)
+    function agentColor(name) {
+        if (name === 'Bố' || name === 'bo' || name === 'boss') return 'var(--gold)';
+        let h = 0; for (let i=0;i<String(name).length;i++) h = (h*31 + name.charCodeAt(i)) % 360;
+        return `hsl(${h}, 65%, 62%)`;
+    }
+
+    function renderChatStream(msgs) {
+        const stream = document.getElementById('coord-msg-list');
+        const me = currentChatFrom();
+        if (!msgs.length) {
+            stream.innerHTML = '<div class="coord-empty" style="margin:auto;">Chưa có tin nhắn. Bắt đầu trò chuyện với team.</div>';
+            return;
+        }
+        const wasNearBottom = stream.scrollHeight - stream.scrollTop - stream.clientHeight < 80;
+        stream.innerHTML = msgs.slice(-80).map(m => {
+            const t = m.created_at ? new Date(m.created_at).toLocaleTimeString('vi-VN', {hour:'2-digit',minute:'2-digit'}) : '';
+            const isBroadcast = !m.to;
+            const isBoss = (m.from === 'Bố' || m.from === 'bo');
+            const toLabel = isBroadcast ? '📢 all' : `→ ${escapeHtml(m.to)}`;
+            const col = agentColor(m.from);
+            return `<div class="chat-row ${isBroadcast ? 'broadcast' : 'directed'}">
+                <div class="chat-bubble ${isBoss ? 'bubble-boss' : ''}">
+                    <div class="cb-head">
+                        <span class="cb-from" style="color:${col};">${escapeHtml(m.from)}</span>
+                        <span class="cb-to">${toLabel}</span>
+                        <span class="cb-time">${t}</span>
+                    </div>
+                    <div class="cb-text">${renderMarkdownInline(m.content)}</div>
+                </div>
+            </div>`;
+        }).join('');
+        if (wasNearBottom) stream.scrollTop = stream.scrollHeight;
+    }
+
+    function currentChatFrom() {
+        const sel = document.getElementById('chat-from');
+        return sel ? sel.value : '';
+    }
+
+    // Keep from/to dropdowns synced with live agents (preserve selection)
+    function syncChatDropdowns(agents) {
+        const fromSel = document.getElementById('chat-from');
+        const toSel = document.getElementById('chat-to');
+        if (!fromSel || !toSel) return;
+        const ids = agents.map(a => a.agent_id);
+        const prevFrom = fromSel.value, prevTo = toSel.value;
+
+        fromSel.innerHTML = ids.map(id => `<option value="${escapeHtml(id)}">${escapeHtml(id)}</option>`).join('')
+            || '<option value="">(chưa có agent)</option>';
+        toSel.innerHTML = '<option value="">📢 Broadcast (tất cả)</option>'
+            + ids.map(id => `<option value="${escapeHtml(id)}">→ ${escapeHtml(id)}</option>`).join('');
+
+        if (ids.includes(prevFrom)) fromSel.value = prevFrom;
+        else if (ids.includes('claude-code')) fromSel.value = 'claude-code';
+        if (prevTo === '' || ids.includes(prevTo)) toSel.value = prevTo;
+    }
+
+    async function sendChatMessage() {
+        const from = document.getElementById('chat-from').value;
+        const to = document.getElementById('chat-to').value || null;
+        const input = document.getElementById('chat-input');
+        const content = input.value.trim();
+        if (!from) { showToast('⚠️ Chọn agent gửi'); return; }
+        if (!content) return;
+        input.value = '';
+        try {
+            await fetch('/api/coord/message', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ from_agent: from, to_agent: to, content })
+            });
+            loadAgentPanel();
+        } catch (e) { showToast(`❌ ${e.message}`); input.value = content; }
+    }
+
+    async function joinAsAgent() {
+        const id = document.getElementById('join-id').value.trim();
+        const role = document.getElementById('join-role').value.trim() || 'builder';
+        if (!id) { showToast('⚠️ Nhập tên agent'); return; }
         try {
             await fetch('/api/coord/heartbeat', {
                 method: 'POST', headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ agent_id: agentId, role: role, status: 'active' })
+                body: JSON.stringify({ agent_id: id, role, status: 'active' })
             });
-            showToast(`✅ ${agentId} registered`);
+            // Announce arrival → triggers other AIs watching the feed
+            await fetch('/api/coord/message', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ from_agent: id, to_agent: null, type: 'join',
+                    content: `👋 ${id} (${role}) vừa tham gia. Có việc gì cần làm không?` })
+            });
+            showToast(`✅ ${id} đã tham gia`);
+            document.getElementById('join-id').value = '';
+            document.getElementById('join-role').value = '';
             loadAgentPanel();
         } catch (e) { showToast(`❌ ${e.message}`); }
     }
 
-    function promptClaimFile() {
-        const agent = prompt('Agent ID:');
-        if (!agent) return;
-        const file = prompt('File path (relative):');
-        if (!file) return;
-        fetch('/api/coord/claim', {
-            method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ agent_id: agent, file_path: file })
-        }).then(r => r.json()).then(d => {
-            if (d.ok) showToast(`🔒 ${file} claimed by ${agent}`);
-            else showToast(`❌ ${file} held by ${d.holder}`);
+    async function claimTask(taskId) {
+        const me = currentChatFrom();
+        if (!me) { showToast('⚠️ Chọn agent (dropdown gửi) trước'); return; }
+        try {
+            await fetch('/api/coord/task/update', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ task_id: taskId, status: 'active', assigned_to: me,
+                    note: `Claimed by ${me}` })
+            });
+            await fetch('/api/coord/message', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ from_agent: me, to_agent: null, type: 'claim',
+                    content: `✋ ${me} nhận task ${taskId}, bắt đầu làm.` })
+            });
+            showToast('✋ Đã nhận việc');
             loadAgentPanel();
-        });
+        } catch (e) { showToast(`❌ ${e.message}`); }
     }
 
-    function promptReleaseFile() {
-        const agent = prompt('Agent ID:');
-        if (!agent) return;
-        const file = prompt('File path to release:');
-        if (!file) return;
-        fetch('/api/coord/release', {
+    function coordHeartbeat(agentId, role) {
+        fetch('/api/coord/heartbeat', {
             method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ agent_id: agent, file_path: file })
-        }).then(() => { showToast(`🔓 Released`); loadAgentPanel(); });
+            body: JSON.stringify({ agent_id: agentId, role: role, status: 'active' })
+        }).then(() => { showToast(`✅ ${agentId} registered`); loadAgentPanel(); })
+          .catch(e => showToast(`❌ ${e.message}`));
     }
 
     function openTaskModal() {
-        const title = prompt('Task title:');
+        const title = prompt('Tiêu đề task:');
         if (!title) return;
-        const assignee = prompt('Assign to (agent ID, or leave empty):') || null;
+        const desc = prompt('Mô tả (tuỳ chọn):') || '';
+        const assignee = prompt('Giao cho ai (để trống = mở cho ai nhận cũng được):') || null;
         fetch('/api/coord/task', {
             method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ title, assigned_to: assignee, posted_by: 'dashboard', priority: 5 })
+            body: JSON.stringify({ title, description: desc, assigned_to: assignee, posted_by: currentChatFrom() || 'dashboard', priority: 5 })
         }).then(() => { showToast(`📋 Task created`); loadAgentPanel(); });
-    }
-
-    function openMsgModal() {
-        const from = prompt('From agent:');
-        if (!from) return;
-        const to = prompt('To agent (empty = broadcast):') || null;
-        const content = prompt('Message:');
-        if (!content) return;
-        fetch('/api/coord/message', {
-            method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ from_agent: from, to_agent: to, content })
-        }).then(() => { showToast(`✉️ Sent`); loadAgentPanel(); });
     }
 
     // ============ HELPERS ============
     function agentEmoji(a) { return { antigravity:'🔵', grok:'🔴', chatgpt:'🟢' }[a] || '⚪'; }
     function escapeHtml(s) { if (s==null) return ''; return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+    // Render markdown to safe HTML for short feed snippets.
+    // Escapes first (XSS-safe), then applies a tiny inline-markdown subset so **bold**/`code` etc. don't show raw.
+    function renderMarkdownInline(s) {
+        if (s==null) return '';
+        let t = escapeHtml(String(s));
+        t = t.replace(/```([\s\S]*?)```/g, '<code>$1</code>');           // fenced -> inline code (compact)
+        t = t.replace(/`([^`]+)`/g, '<code>$1</code>');                   // inline code
+        t = t.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');         // bold
+        t = t.replace(/(^|[^*])\*([^*]+)\*/g, '$1<em>$2</em>');           // italic
+        t = t.replace(/^\s*[-*]\s+/gm, '• ');                             // list bullets
+        t = t.replace(/^#{1,6}\s+/gm, '');                                // strip heading marks
+        t = t.replace(/\n+/g, ' ');                                       // collapse newlines for snippet
+        return t;
+    }
     function formatTime(ts) { if (!ts) return '?'; return new Date(ts).toLocaleString('vi-VN', { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit' }); }
     function showToast(msg) { const t = document.getElementById('toast'); t.textContent = msg; t.style.display = 'block'; clearTimeout(window._toast); window._toast = setTimeout(()=>t.style.display='none', 3000); }
     function configError() { return '<div class="empty"><span class="emoji">⚙️</span>Chưa cấu hình Supabase. Cập nhật <code>data/supabase_config.json</code> và chạy dashboard qua <code>python -m http.server</code> tại workspace root.</div>'; }
@@ -1717,6 +1889,13 @@
         await initConfig();
         loadOverview();
         loadHealth();
+        // Enter-to-send in inter-agent chat
+        const chatInput = document.getElementById('chat-input');
+        if (chatInput) chatInput.addEventListener('keydown', e => {
+            if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendChatMessage(); }
+        });
+        const joinId = document.getElementById('join-id');
+        if (joinId) joinId.addEventListener('keydown', e => { if (e.key === 'Enter') joinAsAgent(); });
     });
     </script>
 </body>
