@@ -216,6 +216,20 @@ class AgentSession:
 
     # ─── Messaging ────────────────────────────────────────────────
 
+    def register_webhook(self, url: str, events: list = None):
+        """Register a webhook URL to receive push events."""
+        return self._post("/api/coord/webhook/register", {
+            "agent_id": self.agent_id,
+            "url": url,
+            "events": events or ["message", "task", "log"],
+        })
+
+    def unregister_webhook(self):
+        """Unregister this agent's webhook."""
+        return self._post("/api/coord/webhook/unregister", {
+            "agent_id": self.agent_id,
+        })
+
     def tell(self, to_agent: str, content: str, msg_type: str = "info"):
         """Send a direct message to another agent."""
         self._post("/api/coord/message", {

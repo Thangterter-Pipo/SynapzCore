@@ -687,6 +687,11 @@ class CustomHandler(SimpleHTTPRequestHandler):
             self._json_ok(entries)
             return
 
+        elif parsed_path.path == "/api/coord/webhooks":
+            webhooks = COORD.get_webhooks()
+            self._json_ok(webhooks)
+            return
+
         # Fallback to serving static files
         super().do_GET()
 
@@ -951,6 +956,33 @@ class CustomHandler(SimpleHTTPRequestHandler):
                     tags=body.get("tags", []),
                 )
                 self._json_ok({"ok": True, "entry": entry})
+            except Exception as e:
+                self._json_err(500, str(e))
+            return
+
+        elif parsed_path.path == "/api/coord/webhook/register":
+            try:
+                body = self._read_body()
+                agent_id = body.get("agent_id")
+                url = body.get("url")
+                if not agent_id or not url:
+                    self._json_err(400, "agent_id and url required")
+                    return
+                result = COORD.register_webhook(agent_id, url, body.get("events"))
+                self._json_ok({"ok": True, "webhook": result})
+            except Exception as e:
+                self._json_err(500, str(e))
+            return
+
+        elif parsed_path.path == "/api/coord/webhook/unregister":
+            try:
+                body = self._read_body()
+                agent_id = body.get("agent_id")
+                if not agent_id:
+                    self._json_err(400, "agent_id required")
+                    return
+                result = COORD.unregister_webhook(agent_id)
+                self._json_ok({"ok": True, "removed": result})
             except Exception as e:
                 self._json_err(500, str(e))
             return

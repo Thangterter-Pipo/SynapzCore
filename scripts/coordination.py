@@ -29,6 +29,7 @@ import json
 import os
 import time
 import threading
+import urllib.request
 from datetime import datetime, timezone
 
 # Agent heartbeat timeout: if no heartbeat for 120s, mark stale.
@@ -58,6 +59,7 @@ class Coordinator:
             "task_queue": [],
             "messages": [],
             "project_log": [],
+            "webhooks": {},
         }
 
     def _read_state(self) -> dict:
@@ -195,6 +197,7 @@ class Coordinator:
             state = self._read_state()
             state["task_queue"].append(task)
             self._write_state(state)
+        self.fire_webhooks("task", dict(task))
         return task
 
     def update_task(self, task_id: str, status: str = None,
@@ -255,6 +258,7 @@ class Coordinator:
             if len(state["messages"]) > MAX_MESSAGES:
                 state["messages"] = state["messages"][-MAX_MESSAGES:]
             self._write_state(state)
+        self.fire_webhooks("message", dict(msg))
         return msg
 
     def get_messages(self, agent_id: str = None, unread_only: bool = False,
@@ -307,6 +311,7 @@ class Coordinator:
             if len(log) > self.MAX_LOG:
                 state["project_log"] = log[-self.MAX_LOG:]
             self._write_state(state)
+        self.fire_webhooks("log", dict(entry))
         return entry
 
     def get_log(self, limit: int = 100, category: str = None,
@@ -328,3 +333,60 @@ class Coordinator:
         for aid, info in state.get("agents", {}).items():
             info["stale"] = (now - info.get("_ts", 0)) > HEARTBEAT_TIMEOUT
         return state
+
+    # ─── Webhook Registry ─────────────────────────────────────────
+
+    def register_webhook(self, agent_id: str, url: str,
+                         events: list = None) -> dict:
+        """Register a webhook URL for an agent. Events: message, task, log."""
+        if events is None:
+            events = ["message", "task", "log"]
+        entry = {
+            "url": url,
+            "events": events,
+            "registered_at": self._now_iso(),
+        }
+        with _lock:
+            state = self._read_state()
+            state.setdefault("webhooks", {})[agent_id] = entry
+            self._write_state(state)
+        return entry
+
+    def unregister_webhook(self, agent_id: str) -> bool:
+        """Remove a registered webhook for agent_id."""
+        with _lock:
+            state = self._read_state()
+            existed = agent_id in state.get("webhooks", {})
+            state.setdefault("webhooks", {}).pop(agent_id, None)
+            if existed:
+                self._write_state(state)
+        return existed
+
+    def get_webhooks(self) -> dict:
+        """Return all registered webhooks."""
+        return self._read_state().get("webhooks", {})
+
+    def fire_webhooks(self, event_type: str, payload: dict) -> None:
+        """POST payload to all webhooks subscribed to event_type (non-blocking)."""
+        webhooks = self._read_state().get("webhooks", {})
+        payload = dict(payload)
+        payload["event"] = event_type
+        payload["timestamp"] = self._now_iso()
+        data = json.dumps(payload, ensure_ascii=False).encode("utf-8")
+
+        def _post(url: str) -> None:
+            try:
+                req = urllib.request.Request(
+                    url, data=data,
+                    headers={"Content-Type": "application/json"},
+                    method="POST",
+                )
+                with urllib.request.urlopen(req, timeout=5):
+                    pass
+            except Exception:
+                pass  # silent fail
+
+        for wh in webhooks.values():
+            if event_type in wh.get("events", []):
+                t = threading.Thread(target=_post, args=(wh["url"],), daemon=True)
+                t.start()
