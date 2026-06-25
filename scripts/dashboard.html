@@ -5686,11 +5686,8 @@
                     <div class="cst-checks">${checks}</div>` : `<div class="cst-prog-label">trạng thái: ${escapeHtml(task.status)}</div>`}
                 </div>`;
                 } else if (agentActive) {
-                    // Không có task nhưng agent đang live → hiện badge "đang hoạt động"
-                    taskHtml = `<div class="cst-node-task" style="opacity:.85">
-                        <span class="tt">⚡ Đang hoạt động</span>
-                        <div class="cst-prog-label" style="color:var(--accent)">live · không có task được giao</div>
-                    </div>`;
+                    // live nhưng không có task → rảnh như các agent khác
+                    taskHtml = '<div class="cst-node-task muted" style="opacity:.6">— rảnh —</div>';
                 }
                 nodesHtml += `<div class="cst-node ${stateCls}" style="left:${x}px;top:${y}px">
                 <div class="cst-node-card">
