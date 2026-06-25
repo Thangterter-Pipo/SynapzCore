@@ -1833,6 +1833,28 @@ class CustomHandler(SimpleHTTPRequestHandler):
                 self._json_err(500, str(e))
             return
 
+        elif parsed_path.path == "/api/coord/ack-rules":
+            try:
+                body = self._read_body()
+                agent_id = body.get("agent_id")
+                rules_version = body.get("rules_version")
+                if not agent_id or not rules_version:
+                    self._json_err(400, "agent_id and rules_version required")
+                    return
+                result = COORD.ack_rules(agent_id, rules_version)
+                if result.get("ok"):
+                    self._json_ok(result)
+                else:
+                    self._json_err(400, result.get("error", "ack failed"))
+            except Exception as e:
+                self._json_err(500, str(e))
+            return
+
+        elif parsed_path.path == "/api/coord/rules":
+            from coordination import build_rules_payload, RULES_VERSION
+            self._json_ok({"rules_version": RULES_VERSION, "roles": {r: build_rules_payload(r) for r in ["orchestrator","builder","researcher","reviewer","tester"]}})
+            return
+
         elif parsed_path.path == "/api/coord/claim":
             try:
                 body = self._read_body()
@@ -1840,6 +1862,11 @@ class CustomHandler(SimpleHTTPRequestHandler):
                 file_path = body.get("file_path")
                 if not agent_id or not file_path:
                     self._json_err(400, "agent_id and file_path required")
+                    return
+                # Permission check
+                allowed, reason = COORD.check_permission(agent_id, "can_claim_lock")
+                if not allowed:
+                    self._json_err(403, f"Permission denied: {reason}")
                     return
                 result = COORD.claim_file(agent_id, file_path)
                 self._json_ok(result)
@@ -1863,10 +1890,18 @@ class CustomHandler(SimpleHTTPRequestHandler):
                 if not title:
                     self._json_err(400, "title required")
                     return
+                # Permission: chỉ orchestrator mới được assign task cho agent khác
+                posted_by = body.get("posted_by", "dashboard")
+                assigned_to = body.get("assigned_to")
+                if posted_by != "dashboard" and assigned_to:
+                    allowed, reason = COORD.check_permission(posted_by, "can_assign_task")
+                    if not allowed:
+                        self._json_err(403, f"Permission denied: {reason}")
+                        return
                 task = COORD.post_task(
                     title=title,
                     description=body.get("description", ""),
-                    assigned_to=body.get("assigned_to"),
+                    assigned_to=assigned_to,
                     priority=body.get("priority", 5),
                     posted_by=body.get("posted_by", "dashboard"),
                     checklist=body.get("checklist"),
@@ -1922,6 +1957,21 @@ class CustomHandler(SimpleHTTPRequestHandler):
                     return
                 msg_type = body.get("type", "info")
                 to_agent = body.get("to_agent")
+                # Permission check
+                if not to_agent:  # broadcast
+                    allowed, reason = COORD.check_permission(from_agent, "can_broadcast")
+                else:
+                    allowed, reason = COORD.check_permission(from_agent, "can_message_any")
+                    # builder được phép reply cho orchestrator / người assign task
+                    if not allowed:
+                        state = COORD._read_state()
+                        sender = state["agents"].get(from_agent, {})
+                        if sender.get("compliance") != "probation":
+                            # builder chỉ cần không ở probation để reply
+                            allowed, reason = True, "ok"
+                if not allowed:
+                    self._json_err(403, f"Permission denied: {reason}")
+                    return
                 msg = COORD.send_message(
                     from_agent=from_agent,
                     content=content,

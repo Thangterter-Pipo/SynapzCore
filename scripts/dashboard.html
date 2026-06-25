@@ -3147,6 +3147,19 @@
         .cst-node.node-sm .cst-node-name { font-size: .72rem; }
         .cst-node.node-sm .cst-node-role { font-size: .62rem; }
         .cst-node.node-sm .cst-node-task { font-size: .68rem; }
+        .compliance-badge {
+            font-size: .58rem; font-weight: 600; letter-spacing: .03em;
+            padding: 1px 5px; border-radius: 4px; margin-left: auto;
+            white-space: nowrap;
+        }
+        .compliance-badge.probation {
+            background: rgba(239,68,68,.18); color: #f87171;
+            border: 1px solid rgba(239,68,68,.35);
+        }
+        .compliance-badge.compliant {
+            background: rgba(34,197,94,.14); color: #4ade80;
+            border: 1px solid rgba(34,197,94,.3);
+        }
         .cst-link.child-link {
             stroke-width: 1px;
             stroke-dasharray: 4 3;
@@ -5729,6 +5742,8 @@
             const stateCls = busy ? 'busy' : (a.stale ? 'stale' : 'live');
             const sizeCls  = level === 2 ? 'node-sm' : '';
             const avatar   = (a.agent_id || '?').slice(0, 2).toUpperCase();
+            const compliance = a.compliance || 'probation';
+            const compBadge = `<span class="compliance-badge ${compliance}">${compliance === 'compliant' ? '✓ ok' : '⚠ probation'}</span>`;
             let taskHtml   = `<div class="cst-node-task muted" style="opacity:.6">— rảnh —</div>`;
             if (task) {
                 const ck   = task.checklist || [];
@@ -5756,6 +5771,7 @@
                             <div class="cst-node-role">${escapeHtml(a.role || '')}</div>
                         </div>
                         <span class="cst-node-state"></span>
+                        ${compBadge}
                     </div>
                     ${taskHtml}
                 </div>

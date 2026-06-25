@@ -41,6 +41,85 @@ MAX_COMPLETED_TASKS = 50
 
 _lock = threading.Lock()
 
+# ─────────────────────────────────────────────
+# SYSTEM RULES — versioned, role-based
+# ─────────────────────────────────────────────
+RULES_VERSION = "v1.0.0"
+
+ROLE_RULES = {
+    "orchestrator": {
+        "can_assign_task":   True,
+        "can_broadcast":     True,
+        "can_claim_lock":    True,
+        "can_message_any":   True,
+        "can_update_any_task": True,
+        "description": "Điều phối toàn bộ đội. Được tạo/assign task, broadcast, claim lock, nhắn bất kỳ agent.",
+    },
+    "builder": {
+        "can_assign_task":   False,   # chỉ nhận, không assign cho người khác
+        "can_broadcast":     False,
+        "can_claim_lock":    True,
+        "can_message_any":   False,   # chỉ reply cho orchestrator/assigned
+        "can_update_any_task": False, # chỉ update task của mình
+        "description": "Nhận task, thực thi, báo cáo kết quả. Không assign task cho agent khác.",
+    },
+    "researcher": {
+        "can_assign_task":   False,
+        "can_broadcast":     False,
+        "can_claim_lock":    False,   # chỉ đọc, không lock file
+        "can_message_any":   False,
+        "can_update_any_task": False,
+        "description": "Chỉ tra cứu/tổng hợp thông tin. Không được lock file hay assign task.",
+    },
+    "reviewer": {
+        "can_assign_task":   False,
+        "can_broadcast":     False,
+        "can_claim_lock":    False,
+        "can_message_any":   False,
+        "can_update_any_task": False, # chỉ add comment, không đổi status
+        "description": "Review và comment task đã tồn tại. Không tạo task mới hay lock file.",
+    },
+    "tester": {
+        "can_assign_task":   False,
+        "can_broadcast":     False,
+        "can_claim_lock":    True,    # cần lock file khi chạy test
+        "can_message_any":   False,
+        "can_update_any_task": False, # chỉ update task của mình
+        "description": "Chạy test, cập nhật status task của mình. Không assign task cho agent khác.",
+    },
+}
+
+# Fallback cho role không xác định — quyền tối thiểu
+_DEFAULT_RULES = {
+    "can_assign_task":   False,
+    "can_broadcast":     False,
+    "can_claim_lock":    False,
+    "can_message_any":   False,
+    "can_update_any_task": False,
+    "description": "Role không xác định — quyền tối thiểu, cần liên hệ orchestrator.",
+}
+
+ACK_TIMEOUT_SECONDS = 60  # agent có 60s để ack sau khi join
+
+
+def get_role_rules(role: str) -> dict:
+    return ROLE_RULES.get((role or "").lower(), _DEFAULT_RULES)
+
+
+def build_rules_payload(role: str) -> dict:
+    rules = get_role_rules(role)
+    return {
+        "rules_version": RULES_VERSION,
+        "role": role,
+        "permissions": rules,
+        "instructions": [
+            f"Vai trò của bạn: {role}. {rules['description']}",
+            "Bạn PHẢI gọi POST /api/coord/ack-rules trong vòng 60 giây để xác nhận đã đọc rules.",
+            "Nếu không ack: bạn sẽ ở trạng thái 'probation' — không gửi message/claim lock được.",
+            "Vi phạm permission → request bị từ chối với HTTP 403.",
+        ],
+    }
+
 
 class Coordinator:
     def __init__(self, coord_dir: str):
@@ -91,6 +170,12 @@ class Coordinator:
             state = self._read_state()
             now = self._now_iso()
             existing = state["agents"].get(agent_id, {})
+            is_new = agent_id not in state["agents"]
+            # Khi join mới hoặc đổi role → reset về probation chờ ack
+            role_changed = existing.get("role") != role and not is_new
+            compliance = existing.get("compliance", "probation")
+            if is_new or role_changed:
+                compliance = "probation"
             state["agents"][agent_id] = {
                 "agent_id": agent_id,
                 "role": role,
@@ -98,12 +183,51 @@ class Coordinator:
                 "capabilities": capabilities or existing.get("capabilities", []),
                 "current_task": current_task or existing.get("current_task"),
                 "parent_id": parent_id if parent_id is not None else existing.get("parent_id"),
+                "compliance": compliance,
+                "rules_version": existing.get("rules_version"),
                 "registered_at": existing.get("registered_at", now),
                 "last_heartbeat": now,
                 "_ts": self._now_ts(),
             }
             self._write_state(state)
-        return state["agents"][agent_id]
+        agent = state["agents"][agent_id]
+        # Đính kèm rules vào response để agent đọc
+        agent["_system_rules"] = build_rules_payload(role)
+        return agent
+
+    def ack_rules(self, agent_id: str, rules_version: str) -> dict:
+        """Agent xác nhận đã đọc rules. Chuyển từ probation → compliant."""
+        with _lock:
+            state = self._read_state()
+            agent = state["agents"].get(agent_id)
+            if not agent:
+                return {"ok": False, "error": "agent not found"}
+            if rules_version != RULES_VERSION:
+                return {"ok": False, "error": f"rules_version mismatch, expected {RULES_VERSION}"}
+            agent["compliance"] = "compliant"
+            agent["rules_version"] = rules_version
+            self._write_state(state)
+        return {"ok": True, "compliance": "compliant", "agent_id": agent_id}
+
+    def check_permission(self, agent_id: str, permission: str, state: dict = None) -> tuple[bool, str]:
+        """Kiểm tra agent có quyền không. Trả về (allowed, reason)."""
+        if state is None:
+            state = self._read_state()
+        agent = state["agents"].get(agent_id)
+        if not agent:
+            return False, "agent not registered"
+        # orchestrator luôn có toàn quyền
+        if agent.get("role", "").lower() == "orchestrator":
+            return True, "ok"
+        # probation: chặn message/claim
+        if agent.get("compliance", "probation") == "probation" and permission in ("can_message_any", "can_claim_lock", "can_broadcast"):
+            return False, f"agent '{agent_id}' chưa ack rules — đang ở probation"
+        rules = get_role_rules(agent.get("role", ""))
+        allowed = rules.get(permission, False)
+        if not allowed:
+            return False, f"role '{agent.get('role')}' không có quyền '{permission}'"
+        return True, "ok"
+
 
     def deregister(self, agent_id: str) -> bool:
         """Remove agent and release all its file locks."""
