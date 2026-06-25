@@ -120,29 +120,74 @@
             position: sticky;
             top: 0;
             height: 100vh;
-            transition: width 0.25s cubic-bezier(0.4,0,0.2,1), padding 0.25s ease;
+            transition: width 0.25s cubic-bezier(0.4, 0, 0.2, 1), padding 0.25s ease;
         }
+
         /* ── Sidebar collapsed (chỉ còn icon) ── */
-        .nav.collapsed { width: 70px; padding: 1.5rem 0.55rem; }
+        .nav.collapsed {
+            width: 70px;
+            padding: 1.5rem 0.55rem;
+        }
+
         .nav.collapsed .brand-text,
         .nav.collapsed .nav-section-label,
         .nav.collapsed .nav-badge,
         .nav.collapsed .nav-footer,
-        .nav.collapsed .conn-pill span:last-child { display: none; }
-        .nav.collapsed .brand { justify-content: center; padding: 0 0 1.5rem; gap: 0; }
-        .nav.collapsed .nav-item { justify-content: center; font-size: 0; padding: 0.65rem 0; gap: 0; }
-        .nav.collapsed .nav-icon { font-size: 1.15rem; }
-        .nav-collapse-btn {
-            position: absolute; top: 1.3rem; right: -13px; z-index: 60;
-            width: 26px; height: 26px; border-radius: 50%;
-            background: var(--bg-card-solid, #14182a); border: 1px solid var(--border);
-            color: var(--text-secondary); cursor: pointer; font-size: 0.7rem;
-            display: flex; align-items: center; justify-content: center;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.4); transition: all 0.2s, transform 0.25s;
+        .nav.collapsed .conn-pill span:last-child {
+            display: none;
         }
-        .nav-collapse-btn:hover { color: var(--accent); border-color: var(--accent); }
-        .nav.collapsed .nav-collapse-btn { transform: rotate(180deg); }
-        @media (max-width: 920px) { .nav-collapse-btn { display: none; } }
+
+        .nav.collapsed .brand {
+            justify-content: center;
+            padding: 0 0 1.5rem;
+            gap: 0;
+        }
+
+        .nav.collapsed .nav-item {
+            justify-content: center;
+            font-size: 0;
+            padding: 0.65rem 0;
+            gap: 0;
+        }
+
+        .nav.collapsed .nav-icon {
+            font-size: 1.15rem;
+        }
+
+        .nav-collapse-btn {
+            position: absolute;
+            top: 1.3rem;
+            right: -13px;
+            z-index: 60;
+            width: 26px;
+            height: 26px;
+            border-radius: 50%;
+            background: var(--bg-card-solid, #14182a);
+            border: 1px solid var(--border);
+            color: var(--text-secondary);
+            cursor: pointer;
+            font-size: 0.7rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.4);
+            transition: all 0.2s, transform 0.25s;
+        }
+
+        .nav-collapse-btn:hover {
+            color: var(--accent);
+            border-color: var(--accent);
+        }
+
+        .nav.collapsed .nav-collapse-btn {
+            transform: rotate(180deg);
+        }
+
+        @media (max-width: 920px) {
+            .nav-collapse-btn {
+                display: none;
+            }
+        }
 
         .brand {
             display: flex;
@@ -1940,19 +1985,23 @@
         .chat-row.ide-report {
             justify-content: flex-start;
         }
+
         .chat-bubble.bubble-ide {
             background: rgba(124, 77, 255, 0.08);
             border: 1px solid rgba(124, 77, 255, 0.3);
             max-width: 92%;
         }
+
         .chat-bubble.bubble-ide .cb-from::before {
             content: '🤖 ';
         }
+
         .chat-bubble.bubble-ide .cb-avatar {
             display: inline-flex;
             align-items: center;
             justify-content: center;
-            width: 26px; height: 26px;
+            width: 26px;
+            height: 26px;
             border-radius: 50%;
             background: rgba(124, 77, 255, 0.25);
             font-size: 0.72rem;
@@ -2817,10 +2866,15 @@
             }
 
             .chat-rail {
-                position: fixed; right: 0; z-index: 90;
-                box-shadow: -8px 0 30px rgba(0,0,0,.5);
+                position: fixed;
+                right: 0;
+                z-index: 90;
+                box-shadow: -8px 0 30px rgba(0, 0, 0, .5);
             }
-            .chat-rail.collapsed { width: 40px; }
+
+            .chat-rail.collapsed {
+                width: 40px;
+            }
 
             .panel-grid.cols-2,
             .panel-grid.cols-3 {
@@ -2904,9 +2958,11 @@
         /* ===================== CONSTELLATION (star view) ===================== */
         .constellation {
             position: relative;
-            flex: 1;           /* chiếm phần còn lại sau .chat-rail trong flex-row */
-            width: 0;          /* flex-basis=0, flex:1 lo phần còn lại */
-            height: calc(100vh - 150px);
+            flex: 1;
+            /* chiếm phần còn lại sau .chat-rail trong flex-row */
+            width: 0;
+            /* flex-basis=0, flex:1 lo phần còn lại */
+            height: calc(100vh - 120px);
             min-height: 560px;
             overflow: hidden;
             border-radius: 16px;
@@ -3309,49 +3365,116 @@
 
         /* ── Khung chat realtime: cột cố định bên phải, cao full màn hình ── */
         .chat-rail {
-            width: 312px; flex-shrink: 0; display: flex; flex-direction: column;
-            height: 100%; /* fill chiều cao #view-constellation thay vì 100vh */
-            background: rgba(10, 10, 20, 0.82); backdrop-filter: blur(var(--glass-blur));
+            width: 312px;
+            flex-shrink: 0;
+            display: flex;
+            flex-direction: column;
+            max-height: calc(100vh - 120px);
+            /* giới hạn chiều cao, không kéo dài vô tận */
+            align-self: flex-start;
+            /* không stretch full height */
+            background: rgba(10, 10, 20, 0.82);
+            backdrop-filter: blur(var(--glass-blur));
             border-left: 1px solid var(--border);
-            transition: width 0.28s cubic-bezier(0.4,0,0.2,1);
+            border-radius: 0 12px 12px 0;
+            transition: width 0.28s cubic-bezier(0.4, 0, 0.2, 1);
         }
-        .chat-rail.collapsed { width: 46px; overflow: hidden; }
+
+        .chat-rail.collapsed {
+            width: 46px;
+            overflow: hidden;
+        }
+
         .chat-rail.collapsed .cst-chat-head span:not(.cst-chat-toggle),
         .chat-rail.collapsed .cst-chat-stream,
-        .chat-rail.collapsed .cst-composer { display: none; }
+        .chat-rail.collapsed .cst-composer {
+            display: none;
+        }
+
         .chat-rail.collapsed .cst-chat-head {
-            flex-direction: column; gap: .6rem; border-bottom: none; padding: .7rem .3rem;
-            writing-mode: vertical-rl; text-orientation: mixed; height: 100%;
+            flex-direction: column;
+            gap: .6rem;
+            border-bottom: none;
+            padding: .7rem .3rem;
+            writing-mode: vertical-rl;
+            text-orientation: mixed;
+            height: 100%;
         }
+
         .cst-chat-toggle {
-            cursor: pointer; user-select: none; font-size: .95rem; line-height: 1;
-            padding: .15rem .3rem; border-radius: 7px; color: var(--text-secondary);
-            transition: background .2s, color .2s; flex-shrink: 0;
+            cursor: pointer;
+            user-select: none;
+            font-size: .95rem;
+            line-height: 1;
+            padding: .15rem .3rem;
+            border-radius: 7px;
+            color: var(--text-secondary);
+            transition: background .2s, color .2s;
+            flex-shrink: 0;
         }
-        .cst-chat-toggle:hover { background: rgba(124,108,240,.18); color: var(--accent); }
+
+        .cst-chat-toggle:hover {
+            background: rgba(124, 108, 240, .18);
+            color: var(--accent);
+        }
 
         .cst-chat-head {
-            display: flex; align-items: center; gap: .55rem;
-            padding: .95rem 1rem; border-bottom: 1px solid var(--border);
-            font-size: .86rem; font-weight: 700;
-            background: linear-gradient(180deg, rgba(124,108,240,0.06), transparent);
+            display: flex;
+            align-items: center;
+            gap: .55rem;
+            padding: .95rem 1rem;
+            border-bottom: 1px solid var(--border);
+            font-size: .86rem;
+            font-weight: 700;
+            background: linear-gradient(180deg, rgba(124, 108, 240, 0.06), transparent);
         }
-        .cst-chat-head > span:nth-child(2) { flex: 1; letter-spacing: .2px; }
-        .cst-chat-head .panel-hint { font-size: .7rem; font-weight: 500; }
+
+        .cst-chat-head>span:nth-child(2) {
+            flex: 1;
+            letter-spacing: .2px;
+        }
+
+        .cst-chat-head .panel-hint {
+            font-size: .7rem;
+            font-weight: 500;
+        }
 
         .cst-chat-stream {
-            flex: 1; overflow-y: auto; overflow-x: hidden;
-            padding: .9rem .85rem 1.1rem; min-height: 60px;
-            display: flex; flex-direction: column; gap: .55rem;
+            flex: 1;
+            overflow-y: auto;
+            overflow-x: hidden;
+            padding: .9rem .85rem 1.1rem;
+            min-height: 60px;
+            display: flex;
+            flex-direction: column;
+            gap: .55rem;
         }
 
         .cst-composer {
-            display: flex; gap: .5rem; padding: .85rem .85rem 1rem;
-            border-top: 1px solid var(--border); box-sizing: border-box; align-items: center;
+            display: flex;
+            gap: .5rem;
+            padding: .85rem .85rem 1rem;
+            border-top: 1px solid var(--border);
+            box-sizing: border-box;
+            align-items: center;
         }
-        .chat-rail * { box-sizing: border-box; }
-        .chat-rail .coord-chat-input { flex: 1; min-width: 0; padding: .65rem .9rem; border-radius: 11px; font-size: .86rem; }
-        .chat-rail #chat-send-btn { flex-shrink: 0; padding: .65rem 1.1rem; }
+
+        .chat-rail * {
+            box-sizing: border-box;
+        }
+
+        .chat-rail .coord-chat-input {
+            flex: 1;
+            min-width: 0;
+            padding: .65rem .9rem;
+            border-radius: 11px;
+            font-size: .86rem;
+        }
+
+        .chat-rail #chat-send-btn {
+            flex-shrink: 0;
+            padding: .65rem 1.1rem;
+        }
 
         .cst-toolbar {
             position: absolute;
@@ -3551,7 +3674,8 @@
     <div class="app">
         <!-- ===== SIDEBAR ===== -->
         <nav class="nav" id="nav">
-            <button class="nav-collapse-btn" id="nav-collapse-btn" onclick="toggleSidebar()" title="Thu gọn / mở sidebar">‹</button>
+            <button class="nav-collapse-btn" id="nav-collapse-btn" onclick="toggleSidebar()"
+                title="Thu gọn / mở sidebar">‹</button>
             <div class="brand">
                 <div class="brand-logo">🧠</div>
                 <div class="brand-text">
@@ -3876,13 +4000,15 @@
                     <!-- ===== KHUNG CHAT REALTIME — nằm trong view-constellation ===== -->
                     <aside class="chat-rail" id="cst-chat">
                         <div class="cst-chat-head">
-                            <span class="cst-chat-toggle" id="cst-chat-toggle" onclick="toggleChatPanel()" title="Thu gọn / mở khung chat">⟩</span>
+                            <span class="cst-chat-toggle" id="cst-chat-toggle" onclick="toggleChatPanel()"
+                                title="Thu gọn / mở khung chat">⟩</span>
                             <span>💬 Báo cáo realtime</span>
                             <span class="panel-hint" id="coord-online-hint">0 online</span>
                         </div>
                         <div id="coord-msg-list" class="cst-chat-stream"></div>
                         <div class="cst-composer">
-                            <input type="text" id="chat-input" class="coord-chat-input" placeholder="Nhắn Orchestrator..." autocomplete="off">
+                            <input type="text" id="chat-input" class="coord-chat-input"
+                                placeholder="Nhắn Orchestrator..." autocomplete="off">
                             <button class="btn btn-primary" id="chat-send-btn" onclick="sendChatMessage()">Gửi</button>
                         </div>
                     </aside>
@@ -4082,10 +4208,15 @@
 
     <script>
         // ============ LAYOUT TOGGLES (sidebar + khung chat realtime) ============
+        function _triggerConstellationResize() {
+            // Đợi CSS transition 280ms xong rồi dispatch resize → SVG tự redraw
+            setTimeout(() => window.dispatchEvent(new Event('resize')), 300);
+        }
         function toggleSidebar() {
             const nav = document.getElementById('nav');
             const collapsed = nav.classList.toggle('collapsed');
-            try { localStorage.setItem('agt-nav-collapsed', collapsed ? '1' : '0'); } catch(e) {}
+            try { localStorage.setItem('agt-nav-collapsed', collapsed ? '1' : '0'); } catch (e) { }
+            _triggerConstellationResize();
         }
         function toggleChatPanel() {
             const chat = document.getElementById('cst-chat');
@@ -4093,7 +4224,8 @@
             const collapsed = chat.classList.toggle('collapsed');
             const tgl = document.getElementById('cst-chat-toggle');
             if (tgl) tgl.textContent = collapsed ? '⟨' : '⟩';
-            try { localStorage.setItem('agt-chat-collapsed', collapsed ? '1' : '0'); } catch(e) {}
+            try { localStorage.setItem('agt-chat-collapsed', collapsed ? '1' : '0'); } catch (e) { }
+            _triggerConstellationResize();
         }
         (function restoreLayoutState() {
             try {
@@ -4104,7 +4236,7 @@
                     const tgl = document.getElementById('cst-chat-toggle');
                     if (tgl) tgl.textContent = '⟨';
                 }
-            } catch(e) {}
+            } catch (e) { }
         })();
         // ============ STATE ============
         let SUPABASE_URL = '', SUPABASE_KEY = '';
@@ -5517,9 +5649,10 @@
                 x = Math.max(mX, Math.min(W - mX, x));
                 y = Math.max(mTop, Math.min(H - NODE_H / 2 - 8, y));
                 const task = taskForAgent(tasks, a.agent_id);
-                // Agent live (không stale) + status=active → coi là busy dù chưa có task assign
+                // busy chỉ khi có task được giao và đang active/in_progress
+                const busy = isBusy(task);
+                // Agent live nhưng không có task → hiện badge thông tin nhẹ (không animate)
                 const agentActive = !a.stale && (a.status === 'active' || a.status === 'in_progress');
-                const busy = isBusy(task) || agentActive;
                 links += `<line class="cst-link ${busy ? 'busy' : ''}" x1="${cx}" y1="${cy}" x2="${x}" y2="${y}"></line>`;
 
                 const stateCls = busy ? 'busy' : (a.stale ? 'stale' : 'live');
