@@ -5652,42 +5652,53 @@
             const stage = document.getElementById('constellation');
             if (!wrap || !stage) return;
             const W = stage.clientWidth, H = stage.clientHeight;
-            const cx = W / 2, cy = H * 0.38;   // tâm orchestrator
+            const cx = W / 2, cy = H / 2;   // tâm orchestrator — chính giữa
 
-            // orchestrator core
+            // Lọc bỏ agent stale quá 10 phút (e2e, test, agent đã thoát)
+            const STALE_HIDE_MS = 10 * 60 * 1000;
+            const now = Date.now();
+            const visibleAgents = agents.filter(a => {
+                if (!a.stale) return true; // live → luôn hiện
+                // stale → chỉ hiện nếu có task in_progress hoặc mới stale (< 10 phút)
+                const hasActiveTask = tasks.some(t =>
+                    t.assigned_to === a.agent_id && t.status === 'in_progress');
+                if (hasActiveTask) return true;
+                // ẩn agent e2e/test pattern tự động
+                if (/^e2e-|^test-/.test(a.agent_id)) return false;
+                return true; // agent thật → vẫn hiện dù stale
+            });
+
+
             const orch = agents.find(a => ORCHESTRATOR_ROLES.includes((a.role || '').toLowerCase()) || ORCHESTRATOR_ROLES.includes(a.agent_id));
             document.getElementById('cst-core-sub').textContent = orch ? orch.agent_id : 'điều phối';
 
             // Phân cấp: agent có parent_id → con của parent đó
             // agent không có parent_id, không phải orchestrator → cấp 1 (nối Orchestrator)
-            const others = agents.filter(a => a !== orch);
+            const others = visibleAgents.filter(a => a !== orch);
             const level1 = others.filter(a => !a.parent_id);   // cấp 1 — nối Orchestrator
             const level2 = others.filter(a => !!a.parent_id);  // cấp 2 — nối parent
 
             // Kích thước node theo cấp
             const N1_W = 180, N1_H = 140;  // cấp 1
             const N2_W = 140, N2_H = 110;  // cấp 2 (nhỏ hơn ~0.78x)
-            const mX = N1_W / 2 + 20, mTop = N1_H / 2 + 10;
+            const mX = N1_W / 2 + 16, mTop = N1_H / 2 + 10;
 
-            // Bố trí level1 trên cung 200° phía trên
+            // 360° full circle — phân bố đều, bắt đầu từ đỉnh (-90°)
             const n1 = Math.max(level1.length, 1);
-            const spread = Math.min(1.2, 0.74 + n1 * 0.06);
-            let rX = Math.min(W * 0.36 * spread, cx - mX);
-            let rY = Math.min(H * 0.34 * spread, cy - mTop);
-            rX = Math.max(rX, 90); rY = Math.max(rY, 70);
-            const ARC_START = Math.PI * (190 / 180);
-            const ARC_SPAN  = Math.PI * (160 / 180);
+            const R = Math.min(W, H) * 0.36;  // bán kính vòng tròn cấp 1
+            const rX = Math.min(R, cx - mX);
+            const rY = Math.min(R, cy - mTop);
 
             // Map agent_id → tọa độ để nối link cấp 2
-            const posMap = {}; // agent_id → {x, y}
+            const posMap = {};
             posMap[orch ? orch.agent_id : '__orch__'] = { x: cx, y: cy };
 
             let links = '', nodesHtml = '';
 
-            // Render cấp 1
+            // Render cấp 1 — 360° phân bố đều
             level1.forEach((a, i) => {
-                const ang = n1 === 1 ? -Math.PI / 2
-                    : ARC_START + (i / (n1 - 1)) * ARC_SPAN;
+                // Chia đều 360°, bắt đầu từ -90° (đỉnh trên)
+                const ang = -Math.PI / 2 + (2 * Math.PI * i / n1);
                 let x = cx + rX * Math.cos(ang);
                 let y = cy + rY * Math.sin(ang);
                 x = Math.max(mX, Math.min(W - mX, x));
@@ -5700,8 +5711,7 @@
                 nodesHtml += _nodeHtml(a, task, busy, x, y, N1_W, N1_H, 1);
             });
 
-            // Render cấp 2 — phân nhánh quanh parent
-            // Gom con theo parent
+            // Render cấp 2 — phân nhánh đều quanh parent
             const childrenOf = {};
             level2.forEach(a => {
                 const pid = a.parent_id;
@@ -5711,14 +5721,12 @@
             Object.entries(childrenOf).forEach(([pid, children]) => {
                 const pp = posMap[pid] || { x: cx, y: cy };
                 const nc = children.length;
-                // Cung nhỏ 120° hướng ra xa tâm từ vị trí parent
+                // Góc gốc = hướng từ tâm → parent, nhánh con tỏa đều 360° quanh parent
                 const baseAng = Math.atan2(pp.y - cy, pp.x - cx);
-                const childSpan = Math.PI * 0.65;
-                const childR = 130; // bán kính nhánh con
+                const childR = 125;
                 children.forEach((a, i) => {
-                    const ang = nc === 1
-                        ? baseAng
-                        : baseAng - childSpan / 2 + (i / (nc - 1)) * childSpan;
+                    // 360° chia đều quanh parent, bắt đầu từ hướng ra xa tâm
+                    const ang = baseAng + (2 * Math.PI * i / nc);
                     let x = pp.x + childR * Math.cos(ang);
                     let y = pp.y + childR * Math.sin(ang);
                     x = Math.max(N2_W / 2 + 8, Math.min(W - N2_W / 2 - 8, x));
