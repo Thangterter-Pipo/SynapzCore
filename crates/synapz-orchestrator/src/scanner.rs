@@ -22,21 +22,111 @@ struct AgentSpec {
 
 /// Danh mục agent dò — khớp UI trong ảnh bố gửi.
 const SPECS: &[AgentSpec] = &[
-    AgentSpec { name: "Claude Code", binaries: &["claude"], config_hints: &[".claude"], auth_files: &[".claude.json", ".claude/settings.json"], npm_packages: &["@anthropic-ai/claude-code"] },
-    AgentSpec { name: "OpenAI Codex CLI", binaries: &["codex"], config_hints: &[".codex"], auth_files: &[".codex/auth.json"], npm_packages: &["@openai/codex"] },
-    AgentSpec { name: "Cursor", binaries: &["cursor"], config_hints: &[".cursor"], auth_files: &[], npm_packages: &[] },
-    AgentSpec { name: "Cline", binaries: &["cline"], config_hints: &[], auth_files: &[], npm_packages: &["cline"] },
-    AgentSpec { name: "Continue", binaries: &["continue", "cn"], config_hints: &[".continue"], auth_files: &[], npm_packages: &[] },
-    AgentSpec { name: "Gemini CLI", binaries: &["gemini"], config_hints: &[".gemini"], auth_files: &[".gemini/settings.json"], npm_packages: &["@google/gemini-cli"] },
-    AgentSpec { name: "OpenCode", binaries: &["opencode"], config_hints: &[".opencode", ".config/opencode"], auth_files: &[], npm_packages: &["opencode-windows-x64", "opencode-ai"] },
-    AgentSpec { name: "Hermes Agent", binaries: &["hermes"], config_hints: &[".hermes", "AppData/Local/hermes"], auth_files: &[], npm_packages: &[] },
-    AgentSpec { name: "Qwen Code", binaries: &["qwen"], config_hints: &[".qwen"], auth_files: &[], npm_packages: &["@qwen-code/qwen-code"] },
-    AgentSpec { name: "Aider", binaries: &["aider"], config_hints: &[".aider"], auth_files: &[], npm_packages: &[] },
-    AgentSpec { name: "Factory Droid", binaries: &["droid"], config_hints: &[".factory"], auth_files: &[], npm_packages: &[] },
-    AgentSpec { name: "Kilo Code", binaries: &["kilo"], config_hints: &[], auth_files: &[], npm_packages: &[] },
-    AgentSpec { name: "Amp CLI", binaries: &["amp"], config_hints: &[], auth_files: &[], npm_packages: &["@sourcegraph/amp"] },
-    AgentSpec { name: "Roo", binaries: &["roo"], config_hints: &[], auth_files: &[], npm_packages: &[] },
-    AgentSpec { name: "DeepSeek TUI", binaries: &["deepseek"], config_hints: &[], auth_files: &[], npm_packages: &[] },
+    AgentSpec {
+        name: "Claude Code",
+        binaries: &["claude"],
+        config_hints: &[".claude"],
+        auth_files: &[".claude.json", ".claude/settings.json"],
+        npm_packages: &["@anthropic-ai/claude-code"],
+    },
+    AgentSpec {
+        name: "OpenAI Codex CLI",
+        binaries: &["codex"],
+        config_hints: &[".codex"],
+        auth_files: &[".codex/auth.json"],
+        npm_packages: &["@openai/codex"],
+    },
+    AgentSpec {
+        name: "Cursor",
+        binaries: &["cursor"],
+        config_hints: &[".cursor"],
+        auth_files: &[],
+        npm_packages: &[],
+    },
+    AgentSpec {
+        name: "Cline",
+        binaries: &["cline"],
+        config_hints: &[],
+        auth_files: &[],
+        npm_packages: &["cline"],
+    },
+    AgentSpec {
+        name: "Continue",
+        binaries: &["continue", "cn"],
+        config_hints: &[".continue"],
+        auth_files: &[],
+        npm_packages: &[],
+    },
+    AgentSpec {
+        name: "Gemini CLI",
+        binaries: &["gemini"],
+        config_hints: &[".gemini"],
+        auth_files: &[".gemini/settings.json"],
+        npm_packages: &["@google/gemini-cli"],
+    },
+    AgentSpec {
+        name: "OpenCode",
+        binaries: &["opencode"],
+        config_hints: &[".opencode", ".config/opencode"],
+        auth_files: &[],
+        npm_packages: &["opencode-windows-x64", "opencode-ai"],
+    },
+    AgentSpec {
+        name: "Hermes Agent",
+        binaries: &["hermes"],
+        config_hints: &[".hermes", "AppData/Local/hermes"],
+        auth_files: &[],
+        npm_packages: &[],
+    },
+    AgentSpec {
+        name: "Qwen Code",
+        binaries: &["qwen"],
+        config_hints: &[".qwen"],
+        auth_files: &[],
+        npm_packages: &["@qwen-code/qwen-code"],
+    },
+    AgentSpec {
+        name: "Aider",
+        binaries: &["aider"],
+        config_hints: &[".aider"],
+        auth_files: &[],
+        npm_packages: &[],
+    },
+    AgentSpec {
+        name: "Factory Droid",
+        binaries: &["droid"],
+        config_hints: &[".factory"],
+        auth_files: &[],
+        npm_packages: &[],
+    },
+    AgentSpec {
+        name: "Kilo Code",
+        binaries: &["kilo"],
+        config_hints: &[],
+        auth_files: &[],
+        npm_packages: &[],
+    },
+    AgentSpec {
+        name: "Amp CLI",
+        binaries: &["amp"],
+        config_hints: &[],
+        auth_files: &[],
+        npm_packages: &["@sourcegraph/amp"],
+    },
+    AgentSpec {
+        name: "Roo",
+        binaries: &["roo"],
+        config_hints: &[],
+        auth_files: &[],
+        npm_packages: &[],
+    },
+    AgentSpec {
+        name: "DeepSeek TUI",
+        binaries: &["deepseek"],
+        config_hints: &[],
+        auth_files: &[],
+        npm_packages: &[],
+    },
 ];
 
 /// Quét toàn bộ — trả danh sách agent đã dò (mọi trạng thái, như UI).
@@ -102,10 +192,10 @@ async fn detect_one(spec: &AgentSpec, home: &str) -> DetectedAgent {
 
     // 4. Phân loại trạng thái.
     let status = match (&binary_path, auth_present, &config_path) {
-        (Some(_), true, _) => DetectStatus::Connected,        // binary + auth file rõ ràng
+        (Some(_), true, _) => DetectStatus::Connected, // binary + auth file rõ ràng
         (Some(_), false, Some(_)) => DetectStatus::Connected, // binary + có config dir
-        (Some(_), false, None) => DetectStatus::NotConfigured,// binary nhưng chưa config
-        (None, _, Some(_)) => DetectStatus::Unknown,          // có config nhưng ko thấy binary (PATH?)
+        (Some(_), false, None) => DetectStatus::NotConfigured, // binary nhưng chưa config
+        (None, _, Some(_)) => DetectStatus::Unknown,   // có config nhưng ko thấy binary (PATH?)
         (None, _, None) => DetectStatus::NotInstalled,
     };
 
@@ -122,14 +212,14 @@ async fn detect_one(spec: &AgentSpec, home: &str) -> DetectedAgent {
 async fn which(bin: &str) -> Option<String> {
     // Windows: where; Unix: which. Thử cả hai cho chắc trên MSYS.
     for finder in ["where", "which"] {
-        if let Ok(out) = tokio::process::Command::new(finder).arg(bin).output().await {
-            if out.status.success() {
-                let s = String::from_utf8_lossy(&out.stdout);
-                if let Some(first) = s.lines().next() {
-                    let p = first.trim();
-                    if !p.is_empty() {
-                        return Some(p.to_string());
-                    }
+        if let Ok(out) = tokio::process::Command::new(finder).arg(bin).output().await
+            && out.status.success()
+        {
+            let s = String::from_utf8_lossy(&out.stdout);
+            if let Some(first) = s.lines().next() {
+                let p = first.trim();
+                if !p.is_empty() {
+                    return Some(p.to_string());
                 }
             }
         }
@@ -158,12 +248,19 @@ fn npm_package_path(pkg: &str) -> Option<String> {
 
 /// Lấy version: `<bin> --version`, cắt dòng đầu.
 async fn get_version(bin: &str) -> Option<String> {
-    let out = tokio::process::Command::new(bin).arg("--version").output().await.ok()?;
+    let out = tokio::process::Command::new(bin)
+        .arg("--version")
+        .output()
+        .await
+        .ok()?;
     if !out.status.success() {
         return None;
     }
     let s = String::from_utf8_lossy(&out.stdout);
-    s.lines().next().map(|l| l.trim().to_string()).filter(|l| !l.is_empty())
+    s.lines()
+        .next()
+        .map(|l| l.trim().to_string())
+        .filter(|l| !l.is_empty())
 }
 
 fn home_dir() -> String {
@@ -191,10 +288,10 @@ pub async fn scan_local_environment() -> Vec<String> {
     ];
     let mut caps = Vec::new();
     for (cap, bin, arg) in checks {
-        if let Ok(out) = tokio::process::Command::new(bin).arg(arg).output().await {
-            if out.status.success() {
-                caps.push(cap.to_string());
-            }
+        if let Ok(out) = tokio::process::Command::new(bin).arg(arg).output().await
+            && out.status.success()
+        {
+            caps.push(cap.to_string());
         }
     }
     caps

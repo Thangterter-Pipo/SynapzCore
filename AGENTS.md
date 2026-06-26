@@ -23,7 +23,7 @@ E:\AGT_Brain\
 ├── crates/
 │   ├── synapz-memory/     # Supabase cloud memory (reqwest REST + sync queue + archive + pgvector)
 │   ├── synapz-tools/      # Agent tools: file(6) + shell(1) + web(2) + memory(5)
-│   ├── synapz-mcp/        # MCP Server (rmcp, stdio — 10 tools exposed to IDE)
+│   ├── synapz-mcp/        # MCP Server (rmcp, stdio — 12 tools exposed to IDE)
 │   └── synapz-orchestrator/ # Local multi-agent điều phối (Tokio): task graph, pipeline, parallel executor, git isolation, smart merge
 ├── memory/             # Local persistent: decisions/ + incidents/ (append-only)
 ├── data/               # supabase_config.json, goals.json

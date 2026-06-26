@@ -4,7 +4,7 @@
 //! and provides programmatic control: inject prompts, monitor responses,
 //! switch models, auto-accept edits.
 
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use futures_util::{SinkExt, StreamExt};
 use serde::{Deserialize, Serialize};
 use tokio_tungstenite::tungstenite::Message;
@@ -51,16 +51,26 @@ impl CdpController {
         let resp = reqwest::get(&json_url).await
             .map_err(|e| anyhow!("Cannot connect to CDP at port {port}: {e}.\nMake sure Antigravity is launched with --remote-debugging-port={port}"))?;
 
-        let pages: Vec<DebugPage> = resp.json().await
+        let pages: Vec<DebugPage> = resp
+            .json()
+            .await
             .map_err(|e| anyhow!("Invalid CDP response: {e}"))?;
 
         // Find the workbench page (main IDE window)
-        let workbench = pages.iter()
+        let workbench = pages
+            .iter()
             .find(|p| p.url.contains("workbench.html") || p.title.contains("Antigravity"))
             .or_else(|| pages.iter().find(|p| p.page_type == "page"))
-            .ok_or_else(|| anyhow!("No workbench page found. Pages: {:?}", pages.iter().map(|p| &p.title).collect::<Vec<_>>()))?;
+            .ok_or_else(|| {
+                anyhow!(
+                    "No workbench page found. Pages: {:?}",
+                    pages.iter().map(|p| &p.title).collect::<Vec<_>>()
+                )
+            })?;
 
-        let ws_url = workbench.web_socket_debugger_url.as_ref()
+        let ws_url = workbench
+            .web_socket_debugger_url
+            .as_ref()
             .ok_or_else(|| anyhow!("Workbench page has no WebSocket URL"))?;
 
         eprintln!("✅ Found workbench: '{}' at {}", workbench.title, ws_url);
@@ -84,11 +94,14 @@ impl CdpController {
             }),
         };
 
-        let (mut ws_stream, _) = tokio_tungstenite::connect_async(&self.ws_url).await
+        let (mut ws_stream, _) = tokio_tungstenite::connect_async(&self.ws_url)
+            .await
             .map_err(|e| anyhow!("WebSocket connect failed: {e}"))?;
 
         let cmd_json = serde_json::to_string(&cmd)?;
-        ws_stream.send(Message::Text(cmd_json)).await
+        ws_stream
+            .send(Message::Text(cmd_json))
+            .await
             .map_err(|e| anyhow!("WebSocket send failed: {e}"))?;
 
         // Wait for response with matching id
@@ -98,13 +111,13 @@ impl CdpController {
         while tokio::time::Instant::now() < deadline {
             match tokio::time::timeout(timeout, ws_stream.next()).await {
                 Ok(Some(Ok(Message::Text(text)))) => {
-                    if let Ok(resp) = serde_json::from_str::<CdpResponse>(&text) {
-                        if resp.id == Some(self.command_id) {
-                            if let Some(error) = resp.error {
-                                return Err(anyhow!("CDP error: {error}"));
-                            }
-                            return Ok(resp.result.unwrap_or(serde_json::Value::Null));
+                    if let Ok(resp) = serde_json::from_str::<CdpResponse>(&text)
+                        && resp.id == Some(self.command_id)
+                    {
+                        if let Some(error) = resp.error {
+                            return Err(anyhow!("CDP error: {error}"));
                         }
+                        return Ok(resp.result.unwrap_or(serde_json::Value::Null));
                     }
                 }
                 Ok(Some(Err(e))) => return Err(anyhow!("WebSocket error: {e}")),
@@ -119,10 +132,14 @@ impl CdpController {
 
     /// Inject a prompt into the IDE chat input and submit it.
     pub async fn inject_prompt(&mut self, prompt: &str) -> Result<()> {
-        let escaped = prompt.replace('\\', "\\\\").replace('\'', "\\'").replace('\n', "\\n");
+        let escaped = prompt
+            .replace('\\', "\\\\")
+            .replace('\'', "\\'")
+            .replace('\n', "\\n");
 
         // Find the chat input textarea and set its value
-        let js = format!(r#"
+        let js = format!(
+            r#"
             (function() {{
                 // Try multiple selectors for the chat input
                 var selectors = [
@@ -160,7 +177,8 @@ impl CdpController {
                 }}
                 return 'no_input_found';
             }})()
-        "#);
+        "#
+        );
 
         let result = self.evaluate_js(&js).await?;
         eprintln!("🚀 Prompt injection: {:?}", result);
@@ -198,7 +216,8 @@ impl CdpController {
                     })()
                 "#).await?;
 
-                let text = response.get("value")
+                let text = response
+                    .get("value")
                     .and_then(|v| v.as_str())
                     .unwrap_or("")
                     .to_string();
@@ -250,9 +269,7 @@ impl CdpController {
         "#;
 
         let result = self.evaluate_js(js).await?;
-        let count = result.get("value")
-            .and_then(|v| v.as_u64())
-            .unwrap_or(0) as u32;
+        let count = result.get("value").and_then(|v| v.as_u64()).unwrap_or(0) as u32;
         eprintln!("✅ Auto-accepted {count} edits");
         Ok(count)
     }
@@ -333,7 +350,10 @@ impl CdpController {
             })()
         "#;
         let result = self.evaluate_js(js).await?;
-        Ok(result.get("value").and_then(|v| v.as_bool()).unwrap_or(false))
+        Ok(result
+            .get("value")
+            .and_then(|v| v.as_bool())
+            .unwrap_or(false))
     }
 
     /// Switch the IDE model (e.g., to Claude Sonnet, Gemini, etc.).
@@ -341,7 +361,8 @@ impl CdpController {
     /// and the Monaco quick-input list. Returns the outcome string.
     pub async fn switch_model(&mut self, model_name: &str) -> Result<String> {
         let escaped = model_name.replace('\\', "\\\\").replace('\'', "\\'");
-        let js = format!(r#"
+        let js = format!(
+            r#"
             (function() {{
                 return new Promise(function(resolve) {{
                     var target = '{escaped}'.toLowerCase();
@@ -367,10 +388,15 @@ impl CdpController {
                     }}, 700);
                 }});
             }})()
-        "#);
+        "#
+        );
 
         let result = self.evaluate_js(&js).await?;
-        let outcome = result.get("value").and_then(|v| v.as_str()).unwrap_or("unknown").to_string();
+        let outcome = result
+            .get("value")
+            .and_then(|v| v.as_str())
+            .unwrap_or("unknown")
+            .to_string();
         eprintln!("🔄 Model switch to '{model_name}': {outcome}");
         Ok(outcome)
     }
@@ -391,18 +417,30 @@ impl CdpController {
         let _ = self.auto_allow().await;
         let edits = self.auto_accept_edits().await.unwrap_or(0);
 
-        eprintln!("✅ Task complete. Response: {} chars, {} edits accepted", response.len(), edits);
+        eprintln!(
+            "✅ Task complete. Response: {} chars, {} edits accepted",
+            response.len(),
+            edits
+        );
         Ok(response)
     }
 
     /// Autopilot: continuously poll for approval dialogs and (optionally) file
     /// edits, auto-clicking them. Mirrors LazyGravity's polling detector.
     /// Runs for `duration_secs`, polling every `interval_ms`.
-    pub async fn auto_pilot(&mut self, duration_secs: u64, interval_ms: u64, accept_edits: bool) -> Result<(u32, u32)> {
-        let deadline = tokio::time::Instant::now() + tokio::time::Duration::from_secs(duration_secs);
+    pub async fn auto_pilot(
+        &mut self,
+        duration_secs: u64,
+        interval_ms: u64,
+        accept_edits: bool,
+    ) -> Result<(u32, u32)> {
+        let deadline =
+            tokio::time::Instant::now() + tokio::time::Duration::from_secs(duration_secs);
         let mut allows = 0u32;
         let mut accepts = 0u32;
-        eprintln!("🛸 Autopilot started ({duration_secs}s, every {interval_ms}ms, accept_edits={accept_edits})");
+        eprintln!(
+            "🛸 Autopilot started ({duration_secs}s, every {interval_ms}ms, accept_edits={accept_edits})"
+        );
 
         while tokio::time::Instant::now() < deadline {
             if self.auto_allow().await.unwrap_or(false) {
@@ -420,12 +458,21 @@ impl CdpController {
 }
 
 /// Run a batch of tasks autonomously
-pub async fn run_task_queue(port: u16, tasks: Vec<String>, timeout_per_task: u64) -> Result<Vec<(String, Result<String>)>> {
+pub async fn run_task_queue(
+    port: u16,
+    tasks: Vec<String>,
+    timeout_per_task: u64,
+) -> Result<Vec<(String, Result<String>)>> {
     let mut controller = CdpController::discover(port).await?;
     let mut results = Vec::new();
 
     for (i, task) in tasks.iter().enumerate() {
-        eprintln!("\n📋 Task {}/{}: {}", i + 1, tasks.len(), &task[..task.len().min(60)]);
+        eprintln!(
+            "\n📋 Task {}/{}: {}",
+            i + 1,
+            tasks.len(),
+            &task[..task.len().min(60)]
+        );
 
         let result = controller.execute_task(task, timeout_per_task).await;
         results.push((task.clone(), result));

@@ -43,7 +43,10 @@ pub struct GitBranchManager {
 
 impl GitBranchManager {
     pub fn new(repo: impl Into<PathBuf>) -> Self {
-        Self { repo: repo.into(), prefix: "agent/".to_string() }
+        Self {
+            repo: repo.into(),
+            prefix: "agent/".to_string(),
+        }
     }
 
     pub fn with_prefix(mut self, prefix: &str) -> Self {
@@ -56,7 +59,13 @@ impl GitBranchManager {
         // chuẩn hóa: thay ký tự không an toàn cho ref git.
         let safe: String = task_id
             .chars()
-            .map(|c| if c.is_alphanumeric() || c == '-' || c == '_' { c } else { '-' })
+            .map(|c| {
+                if c.is_alphanumeric() || c == '-' || c == '_' {
+                    c
+                } else {
+                    '-'
+                }
+            })
             .collect();
         format!("{}{}", self.prefix, safe)
     }
@@ -66,7 +75,10 @@ impl GitBranchManager {
         let mut cmd = Command::new("git");
         cmd.current_dir(&self.repo);
         cmd.args(args);
-        let out = cmd.output().await.map_err(|e| GitError::Spawn(e.to_string()))?;
+        let out = cmd
+            .output()
+            .await
+            .map_err(|e| GitError::Spawn(e.to_string()))?;
         if out.status.success() {
             Ok(String::from_utf8_lossy(&out.stdout).trim().to_string())
         } else {
@@ -79,7 +91,9 @@ impl GitBranchManager {
 
     /// Kiểm tra thư mục có phải git repo.
     pub async fn is_repo(&self) -> bool {
-        self.git(&["rev-parse", "--is-inside-work-tree"]).await.is_ok()
+        self.git(&["rev-parse", "--is-inside-work-tree"])
+            .await
+            .is_ok()
     }
 
     /// Branch hiện tại (để biết base quay về).
@@ -126,13 +140,18 @@ impl GitBranchManager {
     pub async fn merge_into_current(&self, branch: &str) -> Result<bool, GitError> {
         match self.git(&["merge", "--no-ff", "--no-edit", branch]).await {
             Ok(_) => Ok(true),
-            Err(GitError::CommandFailed { stderr, .. }) if stderr.contains("CONFLICT") || stderr.contains("conflict") => {
+            Err(GitError::CommandFailed { stderr, .. })
+                if stderr.contains("CONFLICT") || stderr.contains("conflict") =>
+            {
                 Ok(false)
             }
             // git merge in conflict ra stdout chứ không phải stderr ở vài version → kiểm trạng thái.
             Err(_) => {
                 // Có file conflict không?
-                let unmerged = self.git(&["diff", "--name-only", "--diff-filter=U"]).await.unwrap_or_default();
+                let unmerged = self
+                    .git(&["diff", "--name-only", "--diff-filter=U"])
+                    .await
+                    .unwrap_or_default();
                 if !unmerged.is_empty() {
                     Ok(false)
                 } else {
@@ -151,7 +170,12 @@ impl GitBranchManager {
     pub async fn conflicted_files(&self) -> Vec<String> {
         self.git(&["diff", "--name-only", "--diff-filter=U"])
             .await
-            .map(|s| s.lines().map(|l| l.to_string()).filter(|l| !l.is_empty()).collect())
+            .map(|s| {
+                s.lines()
+                    .map(|l| l.to_string())
+                    .filter(|l| !l.is_empty())
+                    .collect()
+            })
             .unwrap_or_default()
     }
 

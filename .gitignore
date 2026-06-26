@@ -4,7 +4,7 @@
 /target/
 /target_build/
 scripts/chatgpt_register/target/
-Cargo.lock
+# Cargo.lock ĐƯỢC commit (workspace có binary → build tái lập được)
 
 # IDE & Editor
 .vscode/
@@ -69,3 +69,6 @@ mingw/
 # Scripts upload cache
 scripts/.upload_cache/
 
+# IDE / tool-local (not part of the open-source project)
+.kiro/
+.codegraph/

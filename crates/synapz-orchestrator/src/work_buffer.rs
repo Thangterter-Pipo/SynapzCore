@@ -73,7 +73,9 @@ pub struct WorkBuffer {
 
 impl WorkBuffer {
     pub fn new() -> Self {
-        Self { artifacts: HashMap::new() }
+        Self {
+            artifacts: HashMap::new(),
+        }
     }
 
     /// Agent staging một artifact (KHÔNG ghi đích thật).
@@ -86,7 +88,10 @@ impl WorkBuffer {
 
     /// Lấy mọi artifact của một task.
     pub fn for_task(&self, task_id: &str) -> &[Artifact] {
-        self.artifacts.get(task_id).map(|v| v.as_slice()).unwrap_or(&[])
+        self.artifacts
+            .get(task_id)
+            .map(|v| v.as_slice())
+            .unwrap_or(&[])
     }
 
     /// Toàn bộ artifact (phẳng) — cho merge/dedupe ở GĐ3.
@@ -175,13 +180,17 @@ mod tests {
         buf.stage(Artifact::new(
             "api-login",
             "coder-01",
-            ArtifactKind::CodeFile { path: "src/login.rs".into() },
+            ArtifactKind::CodeFile {
+                path: "src/login.rs".into(),
+            },
             "fn login() {}",
         ));
         buf.stage(Artifact::new(
             "api-login",
             "coder-01",
-            ArtifactKind::CodeFile { path: "src/jwt.rs".into() },
+            ArtifactKind::CodeFile {
+                path: "src/jwt.rs".into(),
+            },
             "fn sign() {}",
         ));
         assert_eq!(buf.for_task("api-login").len(), 2);
@@ -193,8 +202,20 @@ mod tests {
     #[test]
     fn test_filter_by_kind() {
         let mut buf = WorkBuffer::new();
-        buf.stage(Artifact::new("t1", "a1", ArtifactKind::CodeFile { path: "x.rs".into() }, "code"));
-        buf.stage(Artifact::new("t2", "a2", ArtifactKind::DataRecord, "{\"k\":1}"));
+        buf.stage(Artifact::new(
+            "t1",
+            "a1",
+            ArtifactKind::CodeFile {
+                path: "x.rs".into(),
+            },
+            "code",
+        ));
+        buf.stage(Artifact::new(
+            "t2",
+            "a2",
+            ArtifactKind::DataRecord,
+            "{\"k\":1}",
+        ));
         buf.stage(Artifact::new("t3", "a3", ArtifactKind::Report, "done"));
         assert_eq!(buf.code_files().len(), 1);
         assert_eq!(buf.data_records().len(), 1);

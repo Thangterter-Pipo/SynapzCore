@@ -444,3 +444,98 @@ def test_unregister_unknown_webhook_returns_false(coord):
 def test_webhook_custom_events(coord):
     coord.register_webhook("agent-a", "http://x/hook", events=["task"])
     assert coord.get_webhooks()["agent-a"]["events"] == ["task"]
+
+
+# ─── role locks (single-orchestrator model) ───────────────────
+
+def test_role_lock_forces_kiro_orchestrator(coord):
+    """kiro-ide luôn bị ép role=orchestrator dù heartbeat khai role khác."""
+    a = coord.heartbeat("kiro-ide", role="builder")
+    assert a["role"] == "orchestrator"
+
+
+def test_role_lock_forces_pipo_builder(coord):
+    """pipo-hermes luôn bị ép role=builder dù heartbeat khai orchestrator."""
+    a = coord.heartbeat("pipo-hermes", role="orchestrator")
+    assert a["role"] == "builder"
+
+
+def test_unlocked_agent_keeps_declared_role(coord):
+    """Agent không nằm trong ROLE_LOCKS giữ nguyên role tự khai."""
+    a = coord.heartbeat("claude-code", role="builder")
+    assert a["role"] == "builder"
+    b = coord.heartbeat("some-researcher", role="researcher")
+    assert b["role"] == "researcher"
+
+
+# ─── compliance and permissions ────────────────────────────────
+
+def test_new_agent_in_probation(coord):
+    a = coord.heartbeat("agent-new", role="builder")
+    assert a["compliance"] == "probation"
+    allowed, _ = coord.check_permission("agent-new", "can_message_any")
+    assert allowed is False
+
+
+def test_ack_rules_makes_compliant(coord):
+    coord.heartbeat("agent-new", role="builder")
+    res = coord.ack_rules("agent-new", "v1.0.0")
+    assert res["ok"] is True
+    assert res["compliance"] == "compliant"
+    agents = coord.get_agents()
+    assert agents["agent-new"]["compliance"] == "compliant"
+    allowed, reason = coord.check_permission("agent-new", "can_claim_lock")
+    assert allowed is True
+    assert reason == "ok"
+
+
+def test_ack_rules_wrong_version(coord):
+    coord.heartbeat("agent-new", role="builder")
+    res = coord.ack_rules("agent-new", "v9.9.9")
+    assert res["ok"] is False
+    assert "version mismatch" in res["error"]
+
+
+def test_concurrent_coordination_access(coord):
+    """Test #7: Spawn multiple threads doing concurrent operations to assert no data corruption or locking exceptions."""
+    import random
+    import threading
+
+    num_threads = 10
+    loops = 50
+    errors = []
+
+    def run_worker(thread_idx):
+        agent_id = f"worker-{thread_idx}"
+        for _ in range(loops):
+            try:
+                # 1) Heartbeat
+                coord.heartbeat(agent_id, role="builder")
+
+                # 2) Claim file with random path to simulate lock contention
+                file_idx = random.randint(1, 5)
+                file_path = f"scripts/test_file_{file_idx}.py"
+                coord.claim_file(agent_id, file_path)
+
+                # 3) Read agents and verify state sanity
+                agents = coord.get_agents()
+                assert agent_id in agents
+
+                # 4) Release lock
+                coord.release_file(agent_id, file_path)
+
+            except Exception as e:
+                errors.append(e)
+
+    threads = []
+    for i in range(num_threads):
+        t = threading.Thread(target=run_worker, args=(i,))
+        threads.append(t)
+        t.start()
+
+    for t in threads:
+        t.join()
+
+    assert len(errors) == 0, f"Encountered {len(errors)} errors during concurrent execution: {errors}"
+
+

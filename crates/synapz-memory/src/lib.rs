@@ -1,18 +1,17 @@
-//! # agt-memory — Antigravity Memory Engine
+//! # synapz-memory — SynapzCore Memory Engine
 //!
-//! Manages long-term shared memory for the 3-AI team via Supabase cloud + local JSON queue.
-//! All agents (Antigravity, ChatGPT) read/write to the same memory.
+//! Manages long-term memory for the Antigravity agent via Supabase cloud + local JSON queue.
 
-mod supabase;
 mod queue;
+mod supabase;
 
-pub use supabase::SupabaseMemory;
 pub use queue::MemoryQueue;
+pub use supabase::SupabaseMemory;
 
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
 
-/// A single memory entry — shared across all 3 agents.
+/// A single memory entry.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Memory {
     pub id: Option<i64>,
@@ -32,52 +31,44 @@ pub struct Memory {
     pub created_at: Option<String>,
 }
 
-fn default_agent() -> String { "antigravity".to_string() }
-fn default_category() -> String { "general".to_string() }
-fn default_importance() -> i16 { 3 }
-fn default_confidence() -> i16 { 3 }
+fn default_agent() -> String {
+    "antigravity".to_string()
+}
+fn default_category() -> String {
+    "general".to_string()
+}
+fn default_importance() -> i16 {
+    3
+}
+fn default_confidence() -> i16 {
+    3
+}
 
-/// Main memory interface — combines Supabase + local queue.
+/// Main memory interface — combines Supabase + local write-ahead queue.
 pub struct MemoryBrain {
     pub supabase: SupabaseMemory,
     pub queue: MemoryQueue,
-    buffer: Vec<Memory>,
 }
 
 impl MemoryBrain {
     pub fn new(config_path: &str) -> Result<Self> {
         let supabase = SupabaseMemory::from_config(config_path)?;
         let queue = MemoryQueue::new(config_path)?;
-        Ok(Self {
-            supabase,
-            queue,
-            buffer: Vec::new(),
-        })
+        Ok(Self { supabase, queue })
     }
 
-    /// Save to working memory buffer. Auto-flush at 5 items.
+    /// Write-ahead save — ghi NGAY xuống đĩa (crash-safe) RỒI mới đẩy cloud.
+    /// Bản cũ đệm RAM tới 5 item mới flush → crash giữa chừng = mất trắng (vi phạm
+    /// nguyên tắc "crash = mất trắng"). Giờ mọi save() persist tức thì vào
+    /// memory_queue.jsonl; flush() best-effort đẩy lên Supabase.
     pub async fn save(&mut self, content: &str, role: &str, context: Option<&str>) -> Result<()> {
-        let mem = Memory {
-            id: None,
-            content: content.to_string(),
-            role: role.to_string(),
-            agent: "antigravity".to_string(),
-            session_id: None,
-            category: "general".to_string(),
-            importance: 3,
-            confidence: 3,
-            metadata: serde_json::json!({ "context": context.unwrap_or("general") }),
-            created_at: None,
-        };
-        self.buffer.push(mem);
-
-        if self.buffer.len() >= 5 {
-            self.flush().await?;
-        }
-        Ok(())
+        self.queue.enqueue(content, role, context)?; // 1) bền vững trước
+        self.flush().await // 2) cố đẩy cloud ngay (lỗi → vẫn còn trong queue)
     }
 
     /// Save with full agent metadata — used by subagent auto-save.
+    // Mirrors SupabaseMemory::remember_as; same schema-driven arg list.
+    #[allow(clippy::too_many_arguments)]
     pub async fn save_as(
         &mut self,
         content: &str,
@@ -88,28 +79,77 @@ impl MemoryBrain {
         confidence: i16,
         metadata: &serde_json::Value,
     ) -> Result<()> {
-        self.supabase.remember_as(content, role, agent, category, importance, confidence, metadata).await
+        self.supabase
+            .remember_as(
+                content, role, agent, category, importance, confidence, metadata,
+            )
+            .await
     }
 
-    /// Flush buffer to Supabase.
+    /// Đẩy write-ahead queue lên Supabase. CRASH-SAFE: chỉ ghi đè file SAU khi đã thử
+    /// đẩy cloud — entry nào lỗi được GIỮ LẠI để thử lần sau. Crash giữa chừng cùng lắm
+    /// gây trùng (re-push) chứ KHÔNG mất data.
     pub async fn flush(&mut self) -> Result<()> {
-        for mem in self.buffer.drain(..) {
-            if let Err(e) = self.supabase.remember(&mem.content, &mem.role, &mem.metadata).await {
-                eprintln!("⚠️ Supabase save failed: {e}, queueing locally");
-                self.queue.enqueue(&mem.content, &mem.role, mem.metadata.get("context").and_then(|v| v.as_str()))?;
+        let entries = self.queue.peek_all()?; // đọc, KHÔNG xoá
+        if entries.is_empty() {
+            return Ok(());
+        }
+        let mut failed = Vec::new();
+        for e in entries {
+            let metadata = serde_json::json!({
+                "context": e.context.clone().unwrap_or_else(|| "general".to_string())
+            });
+            if let Err(err) = self.supabase.remember(&e.text, &e.speaker, &metadata).await {
+                eprintln!("⚠️ Supabase save failed: {err}, giữ lại trong write-ahead queue");
+                failed.push(e);
             }
         }
+        self.queue.replace_all(&failed)?; // chỉ còn lại entry đẩy lỗi
         Ok(())
     }
 
-    /// Search memories by keyword.
+    /// Search memories by keyword. Falls back to the local write-ahead queue when the
+    /// cloud backend errors (e.g. no Supabase config) so recall still works offline.
     pub async fn recall(&self, query: &str, limit: usize) -> Result<Vec<Memory>> {
-        self.supabase.recall(query, limit).await
+        match self.supabase.recall(query, limit).await {
+            Ok(v) => Ok(v),
+            Err(e) => {
+                eprintln!("⚠️ Supabase recall failed ({e}); falling back to local queue");
+                Ok(self.local_recall(query, limit))
+            }
+        }
     }
 
-    /// Fetch N most recent memories.
+    /// Read recall results from the local JSONL queue (offline/degraded mode).
+    fn local_recall(&self, query: &str, limit: usize) -> Vec<Memory> {
+        self.queue
+            .search_local(query, limit)
+            .unwrap_or_default()
+            .into_iter()
+            .map(|e| Memory {
+                id: None,
+                content: e.text,
+                role: e.speaker.clone(),
+                agent: e.speaker,
+                session_id: None,
+                category: e.context.unwrap_or_else(|| "general".to_string()),
+                importance: default_importance(),
+                confidence: default_confidence(),
+                metadata: serde_json::json!({}),
+                created_at: Some(e.timestamp),
+            })
+            .collect()
+    }
+
+    /// Fetch N most recent memories. Falls back to the local queue on cloud error.
     pub async fn fetch_recent(&self, limit: usize) -> Result<Vec<Memory>> {
-        self.supabase.fetch_recent(limit).await
+        match self.supabase.fetch_recent(limit).await {
+            Ok(v) => Ok(v),
+            Err(e) => {
+                eprintln!("⚠️ Supabase fetch_recent failed ({e}); falling back to local queue");
+                Ok(self.local_recall("", limit))
+            }
+        }
     }
 
     /// Fetch memories by specific agent.

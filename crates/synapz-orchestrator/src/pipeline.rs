@@ -27,7 +27,12 @@ pub struct PipelineConfig {
 
 impl Default for PipelineConfig {
     fn default() -> Self {
-        Self { task_timeout_secs: 600, max_fix_attempts: 2, stop_on_failure: false, max_concurrent: 0 }
+        Self {
+            task_timeout_secs: 600,
+            max_fix_attempts: 2,
+            stop_on_failure: false,
+            max_concurrent: 0,
+        }
     }
 }
 
@@ -105,7 +110,9 @@ impl Pipeline {
                     // Heuristic nhận code đa ngôn ngữ: Rust(fn/{), Python(def/import/class),
                     // JS/TS(function/const/=>), khối ```code``` → CodeFile, còn lại Report.
                     if looks_like_code(out) {
-                        ArtifactKind::CodeFile { path: format!("{}.out", r.task_id) }
+                        ArtifactKind::CodeFile {
+                            path: format!("{}.out", r.task_id),
+                        }
                     } else {
                         ArtifactKind::Report
                     },
@@ -155,9 +162,23 @@ fn looks_like_code(s: &str) -> bool {
     }
     // Từ khóa đặc trưng các ngôn ngữ phổ biến.
     const MARKERS: &[&str] = &[
-        "fn ", "func ", "def ", "class ", "import ", "function ",
-        "const ", "let ", "var ", "public ", "private ", "#include",
-        "package ", "=>", "println!", "print(", "console.log",
+        "fn ",
+        "func ",
+        "def ",
+        "class ",
+        "import ",
+        "function ",
+        "const ",
+        "let ",
+        "var ",
+        "public ",
+        "private ",
+        "#include",
+        "package ",
+        "=>",
+        "println!",
+        "print(",
+        "console.log",
     ];
     MARKERS.iter().any(|m| s.contains(m)) || s.contains('{')
 }
@@ -236,14 +257,19 @@ mod tests {
                 }
             })
         });
-        let fixer: Executor = Arc::new(|_id: String, _p: String| {
-            Box::pin(async move { Ok("fixed".to_string()) })
-        });
+        let fixer: Executor =
+            Arc::new(|_id: String, _p: String| Box::pin(async move { Ok("fixed".to_string()) }));
 
-        let cfg = PipelineConfig { stop_on_failure: false, ..Default::default() };
+        let cfg = PipelineConfig {
+            stop_on_failure: false,
+            ..Default::default()
+        };
         let pipe = Pipeline::new(main_exec, cfg);
         let mut buf = WorkBuffer::new();
-        let rep = pipe.run(&website_graph(), &mut buf, Some(fixer)).await.unwrap();
+        let rep = pipe
+            .run(&website_graph(), &mut buf, Some(fixer))
+            .await
+            .unwrap();
 
         // api-login hỏng nhưng fixer sửa được → không gave_up.
         assert!(rep.gave_up.is_empty(), "fixer luôn ok nên không bỏ cuộc");
@@ -254,17 +280,27 @@ mod tests {
     async fn test_pipeline_gives_up_unfixable() {
         let main_exec: Executor = Arc::new(|id: String, _p: String| {
             Box::pin(async move {
-                if id == "api-login" { Err("boom".into()) } else { Ok("fn x() {}".into()) }
+                if id == "api-login" {
+                    Err("boom".into())
+                } else {
+                    Ok("fn x() {}".into())
+                }
             })
         });
         // Fixer luôn fail → hết lượt → gave_up.
-        let fixer: Executor = Arc::new(|_id: String, _p: String| {
-            Box::pin(async move { Err("vẫn lỗi".to_string()) })
-        });
-        let cfg = PipelineConfig { max_fix_attempts: 2, stop_on_failure: false, ..Default::default() };
+        let fixer: Executor =
+            Arc::new(|_id: String, _p: String| Box::pin(async move { Err("vẫn lỗi".to_string()) }));
+        let cfg = PipelineConfig {
+            max_fix_attempts: 2,
+            stop_on_failure: false,
+            ..Default::default()
+        };
         let pipe = Pipeline::new(main_exec, cfg);
         let mut buf = WorkBuffer::new();
-        let rep = pipe.run(&website_graph(), &mut buf, Some(fixer)).await.unwrap();
+        let rep = pipe
+            .run(&website_graph(), &mut buf, Some(fixer))
+            .await
+            .unwrap();
         assert_eq!(rep.gave_up.len(), 1);
         assert_eq!(rep.gave_up[0], "api-login");
     }

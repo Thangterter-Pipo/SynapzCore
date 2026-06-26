@@ -24,7 +24,11 @@ pub struct BugReport {
 
 impl BugReport {
     pub fn new(task_id: impl Into<String>, error_log: impl Into<String>) -> Self {
-        Self { task_id: task_id.into(), error_log: error_log.into(), attempts: 0 }
+        Self {
+            task_id: task_id.into(),
+            error_log: error_log.into(),
+            attempts: 0,
+        }
     }
 }
 
@@ -46,7 +50,10 @@ pub struct RetryQueue {
 
 impl RetryQueue {
     pub fn new(max_attempts: usize) -> Self {
-        Self { queue: VecDeque::new(), max_attempts }
+        Self {
+            queue: VecDeque::new(),
+            max_attempts,
+        }
     }
 
     /// CÔ LẬP LỖI: quét RunReport, gói mọi task hỏng (Failed/Timeout) thành BugReport.
@@ -56,9 +63,7 @@ impl RetryQueue {
         for r in &report.results {
             match &r.outcome {
                 TaskOutcome::Failed(e) => q.push(BugReport::new(&r.task_id, e.clone())),
-                TaskOutcome::Timeout => {
-                    q.push(BugReport::new(&r.task_id, "timeout".to_string()))
-                }
+                TaskOutcome::Timeout => q.push(BugReport::new(&r.task_id, "timeout".to_string())),
                 TaskOutcome::Success(_) => {}
             }
         }
@@ -108,7 +113,12 @@ mod tests {
     use crate::parallel_executor::{RunReport, TaskOutcome, TaskResult};
 
     fn result(id: &str, outcome: TaskOutcome) -> TaskResult {
-        TaskResult { task_id: id.into(), layer: 0, outcome, elapsed_ms: 1 }
+        TaskResult {
+            task_id: id.into(),
+            layer: 0,
+            outcome,
+            elapsed_ms: 1,
+        }
     }
 
     #[test]
@@ -152,7 +162,10 @@ mod tests {
         q.push(BugReport::new("hard-bug", "persistent fail"));
         // Lần 1: fail → requeue (attempts=1).
         let b = q.next_bug().unwrap();
-        assert!(matches!(q.record_attempt(b, false), Some(FixStatus::Requeued(_))));
+        assert!(matches!(
+            q.record_attempt(b, false),
+            Some(FixStatus::Requeued(_))
+        ));
         // Lần 2: fail → attempts=2 >= max → GiveUp.
         let b = q.next_bug().unwrap();
         match q.record_attempt(b, false) {

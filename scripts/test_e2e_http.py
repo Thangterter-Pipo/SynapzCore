@@ -78,12 +78,14 @@ def test_server_up():
 
 def test_heartbeat_and_agents():
     code, r = _req("POST", "/api/coord/heartbeat",
-                   {"agent_id": A1, "role": "builder", "status": "active",
+                   {"agent_id": A1, "role": "orchestrator", "status": "active",
                     "capabilities": ["py", "rust"]})
     check("heartbeat đăng ký agent", code == 200 and r.get("ok"), str(r)[:120])
+    # Ack rules to clear probation
+    _req("POST", "/api/coord/ack-rules", {"agent_id": A1, "rules_version": "v1.0.0"})
 
     code, agents = _req("GET", "/api/coord/agents")
-    ok = code == 200 and A1 in agents and agents[A1]["role"] == "builder"
+    ok = code == 200 and A1 in agents and agents[A1]["role"] == "orchestrator"
     check("agent xuất hiện trong /api/coord/agents", ok)
     # Fresh heartbeat must be live (not stale).
     check("agent vừa heartbeat = live (stale=False)",
@@ -92,6 +94,8 @@ def test_heartbeat_and_agents():
 
 def test_file_lock_conflict():
     _req("POST", "/api/coord/heartbeat", {"agent_id": A2, "role": "tester"})
+    # Ack rules to clear probation
+    _req("POST", "/api/coord/ack-rules", {"agent_id": A2, "rules_version": "v1.0.0"})
     fp = f"scripts/{TAG}_lockme.py"
     code, r1 = _req("POST", "/api/coord/claim", {"agent_id": A1, "file_path": fp})
     check("A1 claim file thành công", code == 200 and r1.get("ok") is True)

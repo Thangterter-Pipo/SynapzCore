@@ -1,0 +1,34 @@
+{
+  "nodes": [
+    {
+      "id": "plan",
+      "prompt": "Phân rã yêu cầu: thêm tính năng checkpoint/resume cho pipeline orchestrator. Liệt kê các bước dựng cụ thể, rõ ràng, đánh số.",
+      "role": "Researcher",
+      "depends_on": []
+    },
+    {
+      "id": "build-core",
+      "prompt": "Theo kế hoạch ở trên, dựng module checkpoint.rs: lưu state pipeline theo từng tầng vào file JSON. Trả code Rust.",
+      "role": "Builder",
+      "depends_on": ["plan"]
+    },
+    {
+      "id": "build-cli",
+      "prompt": "Theo kế hoạch ở trên, thêm cờ CLI --resume vào main.rs để đọc checkpoint và tiếp tục từ tầng dang dở. Trả code Rust.",
+      "role": "Builder",
+      "depends_on": ["plan"]
+    },
+    {
+      "id": "integrate",
+      "prompt": "Ghép checkpoint vào Pipeline.run dựa trên 2 phần builder ở trên. Đảm bảo ghi checkpoint sau mỗi tầng.",
+      "role": "Coder",
+      "depends_on": ["build-core", "build-cli"]
+    },
+    {
+      "id": "verify",
+      "prompt": "Viết test cho luồng resume: giả lập crash giữa pipeline rồi resume, khẳng định không chạy lại tầng đã xong.",
+      "role": "Tester",
+      "depends_on": ["integrate"]
+    }
+  ]
+}

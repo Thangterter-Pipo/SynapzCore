@@ -995,9 +995,160 @@ def _probe_antigravity_ide():
     """The IDE agent is live if CDP debug port 9333 answers."""
     return bool(discover_ws_url())
 
+# Kiro IDE = orchestrator. Kiro hành động qua tool (không ping heartbeat theo timer),
+# nên liveness được suy ra từ độ tươi của "presence file" — file này được Kiro hook
+# (agentStop) touch lại sau mỗi lượt làm việc. Còn tươi trong cửa sổ → orchestrator sáng.
+KIRO_PRESENCE_FILE = os.path.join(os.path.dirname(_SCRIPT_DIR), "data", "coordination", "kiro-ide.alive")
+KIRO_PRESENCE_WINDOW = 900  # 15 phút: đủ rộng để không nhấp nháy giữa các lượt.
+
+# Inbox file cho orchestrator Kiro. Dashboard ghi tin Bố vào đây; Kiro hook (fileEdited)
+# kích hoạt → Kiro thật đọc + trả lời qua /api/coord/message. Cầu nối "ngoại hợp" không CDP.
+KIRO_INBOX_FILE = os.path.join(os.path.dirname(_SCRIPT_DIR), "data", "coordination", "kiro_inbox.md")
+
+def _append_kiro_inbox(from_agent, content):
+    """Ghi 1 tin mới vào inbox của Kiro orchestrator (append-only, log + cho Kiro hook nếu có)."""
+    os.makedirs(os.path.dirname(KIRO_INBOX_FILE), exist_ok=True)
+    ts = time.strftime("%Y-%m-%dT%H:%M:%S")
+    with open(KIRO_INBOX_FILE, "a", encoding="utf-8") as f:
+        f.write("\n## [%s] từ %s\n%s\n" % (ts, from_agent, content))
+
+
+def _nr_chat(system, user, max_tokens=600):
+    """Gọi 9router chat (orchestrator) — trả nội dung text (xử lý cả SSE-stream lẫn JSON đơn)."""
+    url = os.environ.get("NINEROUTER_URL")
+    key = os.environ.get("NINEROUTER_KEY")
+    model = os.environ.get("NINEROUTER_MODEL", "claude-opus-4.8")
+    if not url or not key:
+        return None
+    body = json.dumps({"model": model, "stream": False, "messages": [
+        {"role": "system", "content": system},
+        {"role": "user", "content": user}], "max_tokens": max_tokens}).encode()
+    try:
+        req = urllib.request.Request(url.rstrip("/") + "/v1/chat/completions", data=body,
+                                     headers={"Content-Type": "application/json", "Authorization": "Bearer " + key})
+        raw = urllib.request.urlopen(req, timeout=90).read().decode("utf-8", "replace")
+        if "chat.completion.chunk" in raw or raw.lstrip().startswith("data:"):
+            parts = []
+            for line in raw.splitlines():
+                line = line.strip()
+                if line.startswith("data:"):
+                    pl = line[5:].strip()
+                    if pl and pl != "[DONE]":
+                        try:
+                            d = json.loads(pl)
+                            delta = (d.get("choices") or [{}])[0].get("delta", {}).get("content")
+                            if delta:
+                                parts.append(delta)
+                        except Exception:
+                            pass
+            return "".join(parts).strip() or None
+        idx = raw.find("data:")
+        obj = raw[:idx].strip() if idx > 0 else raw
+        return (json.loads(obj)["choices"][0]["message"]["content"] or "").strip() or None
+    except Exception:
+        return None
+
+
+def _orchestrator_reply(content):
+    """Câu trả lời thuần (fallback) của orchestrator."""
+    return _nr_chat(
+        "Bạn là Kiro — orchestrator SynapzCore. Trả lời NGẮN GỌN, tiếng Việt, hữu ích.",
+        content)
+
+
+def _pick_live_builder():
+    """Chọn builder để giao việc. Ưu tiên builder ĐANG CHẠY WATCH (do power-on) vì nó
+    THỰC THI task thật; fallback builder operational bất kỳ."""
+    # 1) builder có tiến trình watch sống → sẽ sinh deliverable.
+    for aid, proc in _AGENT_PROCS.items():
+        if proc and proc.poll() is None and aid != "kiro-ide":
+            return aid
+    # 2) fallback: builder operational bất kỳ.
+    for aid in operational_agents():
+        if aid == "kiro-ide":
+            continue
+        info = (COORD.get_agents() if COORD else {}).get(aid, {})
+        if info.get("role") in ("builder", "researcher", "tester", "coder"):
+            return aid
+    return None
+
+
+def _orchestrator_act(from_agent, content):
+    """Orchestrator VỪA trả lời VỪA HÀNH ĐỘNG: nếu là yêu cầu công việc → phân rã &
+    giao task cho builder đang sống (health-gated). Nếu chỉ trò chuyện → chỉ trả lời."""
+    sys_p = (
+        "Bạn là Kiro — ORCHESTRATOR điều phối hệ đa tác nhân SynapzCore. Bố nhắn bạn. "
+        "PHÂN LOẠI: nếu là YÊU CẦU CÔNG VIỆC (build/sửa/viết/làm gì đó) → tách thành 1-4 task nhỏ "
+        "giao builder. Nếu chỉ trò chuyện/hỏi đáp → tasks rỗng. "
+        "CHỈ in JSON, KHÔNG văn bản thừa: "
+        '{"reply":"câu trả lời ngắn cho Bố","tasks":[{"title":"...","role":"Coder|Builder|Tester|Researcher"}]}')
+    out = _nr_chat(sys_p, content, max_tokens=700)
+    reply, tasks = None, []
+    if out:
+        try:
+            s = out.find("{"); e = out.rfind("}")
+            data = json.loads(out[s:e + 1]) if s >= 0 and e > s else {}
+            reply = data.get("reply")
+            tasks = data.get("tasks") or []
+        except Exception:
+            reply = out  # không parse được JSON → coi như trả lời thường
+    if not reply:
+        reply = "Dạ con nghe Bố."
+
+    # 1) Trả lời Bố.
+    if COORD:
+        try:
+            COORD.send_message(from_agent="kiro-ide", content=reply, to_agent=from_agent, msg_type="reply")
+        except Exception:
+            pass
+
+    # 2) HÀNH ĐỘNG: giao task cho builder sống (nếu có task).
+    if tasks:
+        builder = _pick_live_builder()
+        dispatched = []
+        for t in tasks[:4]:
+            title = (t.get("title") or "").strip()
+            if not title:
+                continue
+            if builder:
+                try:
+                    task = COORD.post_task(title=title, description=content,
+                                           assigned_to=builder, priority=6, posted_by="kiro-ide")
+                    COORD.update_task(task["id"], status="in_progress", assigned_to=builder)
+                    # Nhắn builder để nó tự xử lý (auto-reply / làm việc).
+                    COORD.send_message(from_agent="kiro-ide", content=f"[TASK] {title}",
+                                       to_agent=builder, msg_type="task")
+                    dispatched.append(title)
+                except Exception:
+                    pass
+        if COORD:
+            summ = (f"🎯 Đã điều phối {len(dispatched)} task → builder '{builder}': "
+                    + "; ".join(dispatched)) if dispatched else \
+                   "⚠️ Có việc nhưng KHÔNG builder nào đang sống để giao. Bố bật 1 builder ở tab Agents giúp con."
+            try:
+                COORD.send_message(from_agent="kiro-ide", content=summ, to_agent=from_agent, msg_type="reply")
+            except Exception:
+                pass
+
+
+def _dispatch_orchestrator_reply(to_agent, content):
+    """Chạy NỀN: orchestrator xử lý tin (trả lời + hành động giao builder)."""
+    threading.Thread(target=lambda: _orchestrator_act(to_agent, content), daemon=True).start()
+
+def _probe_kiro_ide():
+    """Kiro orchestrator live nếu presence file được touch trong KIRO_PRESENCE_WINDOW."""
+    try:
+        if not os.path.isfile(KIRO_PRESENCE_FILE):
+            return None  # chưa có presence → để heartbeat timeout quyết định
+        age = time.time() - os.path.getmtime(KIRO_PRESENCE_FILE)
+        return age <= KIRO_PRESENCE_WINDOW
+    except Exception:
+        return None
+
 _AGENT_PROBES = {
     "antigravity-ide": _probe_antigravity_ide,
     "pipo-hermes": _probe_pipo_hermes,
+    "kiro-ide": _probe_kiro_ide,
 }
 
 def _apply_live_probes(agents):
@@ -1018,6 +1169,37 @@ def _apply_live_probes(agents):
         info["status"] = "active" if live else info.get("status", "offline")
         info["probed"] = True
     return agents
+
+
+def agent_operational(aid):
+    """(ok: bool, reason: str) — agent THẬT SỰ sẵn sàng nhận task chưa?
+    Quy tắc 'đảm bảo agent hoạt động trước khi giao task':
+      - Agent CÓ probe (gateway.pid / CDP 9333) → CHỈ tin probe (True). None/False = KHÔNG
+        (chống 'heartbeat giả' khi process thật không chạy).
+      - Agent KHÔNG probe → tin heartbeat freshness (stale=False)."""
+    if not COORD:
+        return False, "coordination chưa khởi tạo"
+    if aid in _AGENT_PROBES:
+        try:
+            live = _AGENT_PROBES[aid]()
+        except Exception:
+            live = None
+        if live is True:
+            return True, "probe xác nhận sống"
+        return False, "probe KHÔNG xác nhận sống (process/CDP không chạy)"
+    info = COORD.get_agents().get(aid)
+    if not info:
+        return False, "agent chưa đăng ký"
+    if info.get("stale"):
+        return False, "stale (không heartbeat gần đây)"
+    return True, "heartbeat fresh"
+
+
+def operational_agents():
+    """Danh sách agent_id đang operational (dùng cho thông báo khi gate chặn)."""
+    if not COORD:
+        return []
+    return [aid for aid in COORD.get_agents() if agent_operational(aid)[0]]
 
 
 # ── Catalog of AI agents installed on THIS machine ──────────────
@@ -1101,6 +1283,121 @@ def _detect_machine_agents():
             "detail": spec.get("cmd") or spec.get("path") or "host process",
         })
     return out
+
+
+# ── Bật/Tắt TIẾN TRÌNH agent (start/stop) — an toàn: chỉ kill PID do ta spawn ──
+# Bật CLI agent = spawn `agent_sdk.py --action watch` (đăng ký + heartbeat daemon +
+# lắng nghe task → agent SỐNG thật). Bật exe = Popen binary. Tắt = kill ĐÚNG PID đã
+# spawn (không bao giờ kill theo tên process để tránh giết nhầm).
+_AGENT_PROCS = {}  # agent_id -> subprocess.Popen do SynapzCore khởi động
+
+def _no_window_flags():
+    if os.name == "nt":
+        return 0x08000000 | 0x00000008  # CREATE_NO_WINDOW | DETACHED_PROCESS
+    return 0
+
+def _spec_for(agent_id):
+    return next((s for s in _AGENT_CATALOG if s["agent_id"] == agent_id), None)
+
+def start_agent(agent_id):
+    """Khởi động tiến trình agent. Trả (ok, message)."""
+    spec = _spec_for(agent_id)
+    if not spec:
+        return False, f"agent_id lạ: {agent_id}"
+    # Đã có tiến trình do ta spawn còn sống?
+    proc = _AGENT_PROCS.get(agent_id)
+    if proc and proc.poll() is None:
+        return True, f"{agent_id} đã chạy (pid {proc.pid})"
+    root = os.path.dirname(_SCRIPT_DIR)
+    kind = spec.get("kind")
+    try:
+        if kind == "cli":
+            if not _cli_installed(spec["cmd"]):
+                return False, f"{agent_id}: chưa cài CLI '{spec['cmd']}'"
+            cmd = [sys.executable, os.path.join(root, "scripts", "agent_sdk.py"),
+                   "--action", "watch", "--agent", agent_id,
+                   "--role", spec.get("role", "builder"), "--interval", "20"]
+            p = subprocess.Popen(cmd, cwd=root, stdout=subprocess.DEVNULL,
+                                 stderr=subprocess.DEVNULL, creationflags=_no_window_flags())
+            _AGENT_PROCS[agent_id] = p
+            return True, f"{agent_id} watch khởi động (pid {p.pid})"
+        elif kind == "exe":
+            path = spec.get("path", "")
+            if not os.path.isfile(path):
+                return False, f"{agent_id}: không thấy exe {path}"
+            if agent_id == "antigravity-ide":
+                res = launch_antigravity_cdp()  # launch kèm CDP 9333
+                return bool(res.get("ok")), res.get("reason", "antigravity launched")
+            p = subprocess.Popen([path], creationflags=_no_window_flags())
+            _AGENT_PROCS[agent_id] = p
+            return True, f"{agent_id} khởi động (pid {p.pid})"
+        else:  # always / host (pipo-hermes)
+            ok, why = agent_operational(agent_id)
+            if ok:
+                return True, f"{agent_id} đã sống ({why})"
+            return False, f"{agent_id} là host process (Hermes) — khởi động ngoài SynapzCore"
+    except Exception as e:
+        return False, f"start lỗi: {e}"
+
+def stop_agent(agent_id):
+    """Tắt agent: kill ĐÚNG PID do ta spawn / pid-file Hermes; rồi gỡ khỏi coordination."""
+    msg = []
+    # 1) Kill tiến trình do ta spawn (PID cụ thể — an toàn).
+    proc = _AGENT_PROCS.get(agent_id)
+    if proc and proc.poll() is None:
+        try:
+            proc.terminate()
+            msg.append(f"đã kill pid {proc.pid}")
+        except Exception as e:
+            msg.append(f"kill lỗi: {e}")
+    _AGENT_PROCS.pop(agent_id, None)
+    # 2) pipo-hermes: kill theo gateway.pid (pid cụ thể).
+    if agent_id == "pipo-hermes":
+        pid_file = os.path.join(_LOCALAPPDATA, "hermes", "gateway.pid")
+        try:
+            if os.path.isfile(pid_file):
+                with open(pid_file, encoding="utf-8") as f:
+                    pid = json.load(f).get("pid")
+                if pid and _pid_alive(pid):
+                    if os.name == "nt":
+                        subprocess.run(["taskkill", "/PID", str(pid), "/F"], capture_output=True)
+                    else:
+                        os.kill(int(pid), 9)
+                    msg.append(f"đã kill hermes gateway pid {pid}")
+        except Exception as e:
+            msg.append(f"hermes kill lỗi: {e}")
+    # 3) Gỡ khỏi coordination (rời mạng lưới).
+    try:
+        if COORD:
+            COORD.deregister(agent_id)
+            msg.append("đã gỡ khỏi coordination")
+    except Exception:
+        pass
+    if not msg:
+        msg.append("không có tiến trình do SynapzCore quản lý để kill (chỉ gỡ mạng)")
+    return True, "; ".join(msg)
+
+
+def start_sub_agent(parent_id, sub_id, role="builder"):
+    """Spawn 1 sub-agent (nhánh con) chạy nền dưới parent_id — watch + auto-reply,
+    đăng ký với parent_id nên hiện thành child node trong constellation."""
+    spec = _spec_for(parent_id)
+    if not spec:
+        return False, f"parent lạ: {parent_id}"
+    proc = _AGENT_PROCS.get(sub_id)
+    if proc and proc.poll() is None:
+        return True, f"{sub_id} đã chạy (pid {proc.pid})"
+    root = os.path.dirname(_SCRIPT_DIR)
+    cmd = [sys.executable, os.path.join(root, "scripts", "agent_sdk.py"),
+           "--action", "watch", "--agent", sub_id, "--role", role,
+           "--parent", parent_id, "--interval", "20"]
+    try:
+        p = subprocess.Popen(cmd, cwd=root, stdout=subprocess.DEVNULL,
+                             stderr=subprocess.DEVNULL, creationflags=_no_window_flags())
+        _AGENT_PROCS[sub_id] = p
+        return True, f"sub-agent {sub_id} (con của {parent_id}) khởi động (pid {p.pid})"
+    except Exception as e:
+        return False, f"spawn sub lỗi: {e}"
 
 
 def _patch_coordinator():
@@ -1804,6 +2101,67 @@ class CustomHandler(SimpleHTTPRequestHandler):
                 self._json_err(500, str(e))
             return
 
+        elif parsed_path.path == "/api/agents/start":
+            # Khởi động TIẾN TRÌNH agent (spawn watch/exe). body: {agent_id}
+            try:
+                body = self._read_body()
+                agent_id = body.get("agent_id")
+                if not agent_id:
+                    self._json_err(400, "agent_id required")
+                    return
+                ok, msg = start_agent(agent_id)
+                self._json_ok({"ok": ok, "agent_id": agent_id, "message": msg})
+            except Exception as e:
+                self._json_err(500, str(e))
+            return
+
+        elif parsed_path.path == "/api/agents/stop":
+            # Tắt agent: kill ĐÚNG PID do ta spawn / hermes gateway.pid + gỡ mạng. body: {agent_id}
+            try:
+                body = self._read_body()
+                agent_id = body.get("agent_id")
+                if not agent_id:
+                    self._json_err(400, "agent_id required")
+                    return
+                ok, msg = stop_agent(agent_id)
+                self._json_ok({"ok": ok, "agent_id": agent_id, "message": msg})
+            except Exception as e:
+                self._json_err(500, str(e))
+            return
+
+        elif parsed_path.path == "/api/agents/power":
+            # CÔNG TẮC HỢP NHẤT: on=bật (start process + tự register) / off=tắt (kill + deregister).
+            try:
+                body = self._read_body()
+                agent_id = body.get("agent_id")
+                if not agent_id:
+                    self._json_err(400, "agent_id required")
+                    return
+                on = bool(body.get("on"))
+                if on:
+                    ok, msg = start_agent(agent_id)
+                else:
+                    ok, msg = stop_agent(agent_id)
+                self._json_ok({"ok": ok, "agent_id": agent_id, "on": on, "message": msg})
+            except Exception as e:
+                self._json_err(500, str(e))
+            return
+
+        elif parsed_path.path == "/api/agents/spawn-sub":
+            # Tạo nhánh con: spawn sub-agent dưới 1 parent. body: {parent_id, sub_id, role?}
+            try:
+                body = self._read_body()
+                parent_id = body.get("parent_id")
+                sub_id = body.get("sub_id")
+                if not parent_id or not sub_id:
+                    self._json_err(400, "parent_id and sub_id required")
+                    return
+                ok, msg = start_sub_agent(parent_id, sub_id, body.get("role", "builder"))
+                self._json_ok({"ok": ok, "parent_id": parent_id, "sub_id": sub_id, "message": msg})
+            except Exception as e:
+                self._json_err(500, str(e))
+            return
+
         elif parsed_path.path == "/api/coord/heartbeat":
             try:
                 body = self._read_body()
@@ -1898,6 +2256,12 @@ class CustomHandler(SimpleHTTPRequestHandler):
                     if not allowed:
                         self._json_err(403, f"Permission denied: {reason}")
                         return
+                # HEALTH-GATE: không giao task cho agent chưa chứng minh hoạt động.
+                if assigned_to:
+                    ok, why = agent_operational(assigned_to)
+                    if not ok:
+                        self._json_err(409, f"Agent '{assigned_to}' KHÔNG hoạt động ({why}). Agent đang sống: {operational_agents()}")
+                        return
                 task = COORD.post_task(
                     title=title,
                     description=body.get("description", ""),
@@ -1936,6 +2300,13 @@ class CustomHandler(SimpleHTTPRequestHandler):
                 if not task_id:
                     self._json_err(400, "task_id required")
                     return
+                # HEALTH-GATE: reassign chỉ tới agent đang hoạt động.
+                reassign_to = body.get("assigned_to")
+                if reassign_to:
+                    ok, why = agent_operational(reassign_to)
+                    if not ok:
+                        self._json_err(409, f"Agent '{reassign_to}' KHÔNG hoạt động ({why}). Agent đang sống: {operational_agents()}")
+                        return
                 task = COORD.update_task(
                     task_id=task_id,
                     status=body.get("status"),
@@ -1947,14 +2318,49 @@ class CustomHandler(SimpleHTTPRequestHandler):
                 self._json_err(500, str(e))
             return
 
+        elif parsed_path.path == "/api/coord/upload":
+            # Lưu ảnh dán/đính kèm từ chat realtime vào .attachments,
+            # trả về URL tĩnh /scripts/.attachments/<file> để hiển thị inline.
+            try:
+                body = self._read_body()
+                files = body.get("files", [])
+                if not files:
+                    self._json_err(400, "no files")
+                    return
+                os.makedirs(ATTACH_DIR, exist_ok=True)
+                urls = []
+                for idx, f in enumerate(files):
+                    name = f.get("name", f"img_{idx}.png")
+                    data_str = f.get("data", "")
+                    if "," in data_str:
+                        data_str = data_str.split(",", 1)[1]
+                    try:
+                        file_data = base64.b64decode(data_str)
+                    except Exception:
+                        continue
+                    base, ext = os.path.splitext(name)
+                    safe_base = "".join(c for c in base if c.isalnum() or c in ("-", "_"))[:40] or "img"
+                    ext = ext if ext else ".png"
+                    uniq = f"coord_{int(time.time()*1000)}_{idx}_{safe_base}{ext}"
+                    dest_path = os.path.join(ATTACH_DIR, uniq)
+                    with open(dest_path, "wb") as out_f:
+                        out_f.write(file_data)
+                    urls.append(f"/scripts/.attachments/{uniq}")
+                self._json_ok({"ok": True, "urls": urls})
+            except Exception as e:
+                self._json_err(500, str(e))
+            return
+
         elif parsed_path.path == "/api/coord/message":
             try:
                 body = self._read_body()
                 from_agent = body.get("from_agent")
                 content = body.get("content")
-                if not from_agent or not content:
-                    self._json_err(400, "from_agent and content required")
+                images = body.get("images") or []
+                if not from_agent or (not content and not images):
+                    self._json_err(400, "from_agent and (content or images) required")
                     return
+                content = content or ""
                 msg_type = body.get("type", "info")
                 to_agent = body.get("to_agent")
                 # Permission check
@@ -1972,12 +2378,29 @@ class CustomHandler(SimpleHTTPRequestHandler):
                 if not allowed:
                     self._json_err(403, f"Permission denied: {reason}")
                     return
+                # HEALTH-GATE: tin nhắn type=task giao việc → agent đích phải đang hoạt động.
+                if msg_type == "task" and to_agent:
+                    ok, why = agent_operational(to_agent)
+                    if not ok:
+                        self._json_err(409, f"Agent '{to_agent}' KHÔNG hoạt động ({why}). Agent đang sống: {operational_agents()}")
+                        return
                 msg = COORD.send_message(
                     from_agent=from_agent,
                     content=content,
                     to_agent=to_agent,
                     msg_type=msg_type,
+                    images=body.get("images") or [],
                 )
+                # BRIDGE → KIRO IDE: tin gửi cho orchestrator kiro-ide được ghi vào
+                # inbox file. Một Kiro hook (fileEdited) sẽ kích hoạt → CHÍNH Kiro thật
+                # đọc và trả lời qua /api/coord/message. (Không cần CDP — dùng hook Kiro.)
+                if to_agent == "kiro-ide" and from_agent != "kiro-ide" and msg_type != "reply":
+                    try:
+                        _append_kiro_inbox(from_agent, content)
+                    except Exception as _e:
+                        print(f"⚠️ kiro inbox write failed: {_e}")
+                    # Orchestrator (Kiro) TỰ TRẢ LỜI qua 9router (nền) → dashboard luôn có hồi đáp.
+                    _dispatch_orchestrator_reply(from_agent, content)
                 auto_task = None
                 completed_task = None
                 if msg_type == "task" and to_agent:

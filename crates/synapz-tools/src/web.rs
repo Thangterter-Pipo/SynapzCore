@@ -1,10 +1,12 @@
 //! Web tools — HTTP GET/POST via reqwest.
 
-use anyhow::{anyhow, Result};
-use serde_json::{json, Value};
+use anyhow::{Result, anyhow};
+use serde_json::{Value, json};
 
 pub async fn http_get(params: Value) -> Result<Value> {
-    let url = params.get("url").and_then(|v| v.as_str())
+    let url = params
+        .get("url")
+        .and_then(|v| v.as_str())
         .ok_or_else(|| anyhow!("Missing 'url'"))?;
     let timeout = params.get("timeout").and_then(|v| v.as_u64()).unwrap_or(15);
 
@@ -23,7 +25,9 @@ pub async fn http_get(params: Value) -> Result<Value> {
 }
 
 pub async fn http_post(params: Value) -> Result<Value> {
-    let url = params.get("url").and_then(|v| v.as_str())
+    let url = params
+        .get("url")
+        .and_then(|v| v.as_str())
         .ok_or_else(|| anyhow!("Missing 'url'"))?;
     let json_body = params.get("json_body");
     let timeout = params.get("timeout").and_then(|v| v.as_u64()).unwrap_or(15);

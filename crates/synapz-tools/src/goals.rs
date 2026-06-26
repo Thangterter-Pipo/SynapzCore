@@ -73,14 +73,21 @@ impl GoalManager {
     }
 
     pub fn get_active(&self) -> Vec<&Goal> {
-        let mut active: Vec<&Goal> = self.goals.iter()
+        let mut active: Vec<&Goal> = self
+            .goals
+            .iter()
             .filter(|g| g.status == "pending" || g.status == "active")
             .collect();
         active.sort_by(|a, b| b.priority.cmp(&a.priority));
         active
     }
 
-    pub fn update_status(&mut self, id: &str, status: &str, reflection: Option<&str>) -> Result<bool> {
+    pub fn update_status(
+        &mut self,
+        id: &str,
+        status: &str,
+        reflection: Option<&str>,
+    ) -> Result<bool> {
         if let Some(goal) = self.goals.iter_mut().find(|g| g.id == id) {
             goal.status = status.to_string();
             if status == "completed" || status == "failed" {

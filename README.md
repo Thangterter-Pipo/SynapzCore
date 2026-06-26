@@ -1,6 +1,36 @@
 # 🧠 SynapzCore — Bộ Não Ký Ức AI Tự Trị
 
+[![CI](https://github.com/Thangterter-Pipo/SynapzCore/actions/workflows/ci.yml/badge.svg)](https://github.com/Thangterter-Pipo/SynapzCore/actions/workflows/ci.yml) [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE) ![Rust](https://img.shields.io/badge/rust-edition_2024-orange.svg)
+
 **Hệ thống AI đơn tự trị có trí nhớ, tự phản tỉnh, và tự điều khiển IDE** — Antigravity (Builder & Orchestrator) tự quản lý memory, tự học, và tự code autonomously.
+
+---
+
+## English — Quickstart (5 minutes)
+
+SynapzCore is a **Rust multi-agent coding orchestrator** with long-term memory and an
+**MCP server** that plugs into IDEs (Cursor / VS Code / Claude). It builds and runs
+**without any cloud config** — Supabase only enables the optional shared-memory layer.
+
+```bash
+git clone https://github.com/Thangterter-Pipo/SynapzCore.git
+cd SynapzCore
+cp .env.example .env        # optional: set SUPABASE_URL/KEY for cloud memory
+cargo build --workspace     # all 4 crates
+cargo test --workspace      # green with no secrets (cloud tests self-skip)
+cargo run -p synapz-mcp     # start the MCP server (stdio), point your IDE at it
+cargo run -p synapz-orchestrator -- --pipeline examples/demo_graph.json --echo --roles  # offline multi-agent demo
+```
+
+Without credentials, memory tools return a clear config message instead of crashing.
+See [CONTRIBUTING.md](CONTRIBUTING.md) for setup and [ROADMAP_OPENSOURCE.md](ROADMAP_OPENSOURCE.md)
+for the open-source direction, and [CHANGELOG.md](CHANGELOG.md) for recent changes. Architecture & agent workflow: [structure.md](structure.md).
+
+**Why it might interest you:** a real Rust orchestrator (not shell scripts) with git
+isolation + smart merge so multiple agents edit in parallel without clobbering, plus a
+self-correct loop with bounded retries and pgvector long-term memory.
+
+---
 
 ## Tính Năng
 
@@ -19,9 +49,10 @@
 ```
 SynapzCore/
 ├── crates/
-│   ├── synapz-memory/     # Supabase REST + sync queue + archive + pgvector
-│   ├── synapz-tools/      # 14 tools + CDP Controller + Goals + Reflection
-│   └── synapz-mcp/        # MCP Server (rmcp, stdio — 12 tools to IDE)
+│   ├── synapz-memory/       # Supabase REST + sync queue + archive + pgvector
+│   ├── synapz-tools/        # 14 tools + CDP Controller + Goals + Reflection
+│   ├── synapz-mcp/          # MCP Server (rmcp, stdio — 12 tools to IDE)
+│   └── synapz-orchestrator/ # Local multi-agent điều phối (task graph, pipeline, planner)
 ├── memory/             # decisions/ & incidents/ (append-only local logs)
 ├── data/               # goals.json (Supabase config được ignore bảo mật)
 ├── Agent_Profiles/     # Agent identity & workflow docs
@@ -190,7 +221,8 @@ cargo build --release
 ```
 
 Binaries output:
-- `target/release/agt-mcp` — MCP Server (8 tools stdio)
+- `target/release/synapz-mcp` — MCP Server (12 tools, stdio)
+- `target/release/synapz-orchestrator` — Multi-agent orchestrator (task graph + pipeline + planner)
 - `target/release/brain-cron` — Autonomous Scheduler (chạy daily reflection & health check)
 
 ### Autonomous Scheduler
@@ -210,18 +242,22 @@ Tự động chạy trên Windows: Sử dụng file batch `scripts/run_brain_cro
 
 ## Sử Dụng
 
-### SynapzCore MCP Tools (tích hợp trực tiếp vào IDE — 8 tools)
+### SynapzCore MCP Tools (tích hợp trực tiếp vào IDE — 12 tools)
 
 | Tool | Mô tả |
 |------|-------|
 | `auto_context` | 🧠 **Gọi ĐẦU TIÊN** — Load decisions, memories, goals, incidents phục hồi ngữ cảnh |
-| `search_memory` | Tìm ký ức theo keyword (có thể filter theo agent) |
-| `add_memory` | Lưu thông tin mới với agent/category/importance tương ứng |
+| `search_memory` | Tìm ký ức (Spreading Activation SQLite + fallback vector search) |
+| `add_memory` | Lưu thông tin mới (conflict resolution; agent/category/importance) |
 | `team_memory` | Lấy các ký ức quan trọng gần đây của team làm context |
 | `get_boss_profile` | Truy xuất profile & preferences của Bố (User) |
 | `daily_reflection` | 🪞 Tự phản tỉnh, tổng hợp quyết định & insight ngày |
 | `save_skill` | 📚 Lưu các patterns/giải pháp tái sử dụng dưới dạng Skill |
 | `recall_skills` | 🔍 Tìm kiếm skill đã lưu theo keyword |
+| `coord_heartbeat` | 🤝 Đăng ký/làm mới sự hiện diện của agent trong hệ điều phối |
+| `coord_claim` | 🔒 Khóa quyền sửa file trước khi chỉnh (tránh xung đột đa-agent) |
+| `coord_release` | 🔓 Nhả khóa file khi sửa xong |
+| `coord_status` | 📊 Xem agent nào đang hoạt động, file nào đang khóa |
 
 ### Offline Viewer & Extractor
 

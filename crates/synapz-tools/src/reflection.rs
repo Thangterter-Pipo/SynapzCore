@@ -17,7 +17,12 @@ pub fn save_decision(
     fs::create_dir_all(&dir)?;
 
     let timestamp = Utc::now().format("%Y%m%d_%H%M%S");
-    let slug: String = title.to_lowercase().replace(' ', "_").chars().take(30).collect();
+    let slug: String = title
+        .to_lowercase()
+        .replace(' ', "_")
+        .chars()
+        .take(30)
+        .collect();
     let filename = format!("{timestamp}_{slug}.md");
 
     let content = format!(
@@ -42,7 +47,12 @@ pub fn save_incident(
     fs::create_dir_all(&dir)?;
 
     let timestamp = Utc::now().format("%Y%m%d_%H%M%S");
-    let slug: String = title.to_lowercase().replace(' ', "_").chars().take(30).collect();
+    let slug: String = title
+        .to_lowercase()
+        .replace(' ', "_")
+        .chars()
+        .take(30)
+        .collect();
     let filename = format!("{timestamp}_{slug}.md");
 
     let content = format!(

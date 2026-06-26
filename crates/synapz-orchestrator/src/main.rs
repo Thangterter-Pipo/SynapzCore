@@ -13,6 +13,7 @@ mod coordinator;
 mod git_isolation;
 mod parallel_executor;
 mod pipeline;
+mod planner;
 mod roles;
 mod runner;
 mod scanner;
@@ -25,10 +26,67 @@ mod work_buffer;
 use agent::spawn_agent;
 use coordinator::Coordinator;
 use roles::{AgentRole, Command};
+
+/// Default demo roster (id, model, role). Overridable without code changes via the
+/// SYNAPZ_AGENTS env var: comma-separated id:model:role triples, e.g.
+/// `SYNAPZ_AGENTS="dev:gpt-4o:Coder,qa:gpt-4o-mini:Tester"`. This decouples the engine
+/// from any one person's model/provider choices.
+fn default_roster() -> Vec<(String, String, AgentRole)> {
+    if let Ok(spec) = std::env::var("SYNAPZ_AGENTS") {
+        let parsed: Vec<(String, String, AgentRole)> = spec
+            .split(',')
+            .filter_map(|entry| {
+                let parts: Vec<&str> = entry.split(':').map(|s| s.trim()).collect();
+                match parts.as_slice() {
+                    [id, model, role] if !id.is_empty() && !model.is_empty() => {
+                        parse_role(role).map(|r| (id.to_string(), model.to_string(), r))
+                    }
+                    _ => None,
+                }
+            })
+            .collect();
+        if !parsed.is_empty() {
+            return parsed;
+        }
+        eprintln!("⚠️ SYNAPZ_AGENTS set but unparsable; using built-in roster");
+    }
+    vec![
+        (
+            "coder-01".to_string(),
+            "model-coder".to_string(),
+            AgentRole::Coder,
+        ),
+        (
+            "tester-01".to_string(),
+            "model-tester".to_string(),
+            AgentRole::Tester,
+        ),
+        (
+            "researcher-01".to_string(),
+            "model-researcher".to_string(),
+            AgentRole::Researcher,
+        ),
+    ]
+}
+
+/// Parse a role name (case-insensitive) into an AgentRole.
+fn parse_role(s: &str) -> Option<AgentRole> {
+    match s.to_ascii_lowercase().as_str() {
+        "orchestrator" => Some(AgentRole::Orchestrator),
+        "coder" => Some(AgentRole::Coder),
+        "builder" => Some(AgentRole::Builder),
+        "tester" => Some(AgentRole::Tester),
+        "researcher" => Some(AgentRole::Researcher),
+        "unassigned" => Some(AgentRole::Unassigned),
+        _ => None,
+    }
+}
 use std::time::Duration;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
+    load_dotenv(); // nạp NINEROUTER_* / SUPABASE_* từ .env nếu chưa có trong env
+
     // Chế độ quét AI agent: `synapz-orchestrator --scan`
     if std::env::args().any(|a| a == "--scan") {
         return run_scan().await;
@@ -39,7 +97,11 @@ async fn main() -> anyhow::Result<()> {
     let args: Vec<String> = std::env::args().collect();
     if let Some(pos) = args.iter().position(|a| a == "--live") {
         let rest = &args[pos + 1..];
-        let prompt = if rest.is_empty() { "trả lời ngắn: OK".to_string() } else { rest.join(" ") };
+        let prompt = if rest.is_empty() {
+            "trả lời ngắn: OK".to_string()
+        } else {
+            rest.join(" ")
+        };
         return run_live(prompt).await;
     }
 
@@ -70,11 +132,42 @@ async fn main() -> anyhow::Result<()> {
         let roles = args.iter().any(|a| a == "--roles");
         let git = args.iter().any(|a| a == "--git");
         // --jobs N: giới hạn số task chạy đồng thời (0/bỏ trống = auto theo RAM).
-        let jobs = args.iter().position(|a| a == "--jobs")
+        let jobs = args
+            .iter()
+            .position(|a| a == "--jobs")
             .and_then(|p| args.get(p + 1))
             .and_then(|v| v.parse::<usize>().ok())
             .unwrap_or(0);
         return run_pipeline(&path, echo, roles, git, jobs).await;
+    }
+
+    // Chế độ PLAN: orchestrator tự phân rã mục tiêu NN tự nhiên → TaskGraph (qua LLM).
+    // `synapz-orchestrator --plan "mục tiêu" [--run] [--echo|--roles|--git] [--jobs N]`
+    //   không --run : chỉ sinh + in + lưu data/last_plan.json (xem trước kế hoạch).
+    //   --run       : sinh xong chạy luôn pipeline trên graph vừa sinh.
+    if let Some(pos) = args.iter().position(|a| a == "--plan") {
+        // Gom các token sau --plan (tới flag kế tiếp bắt đầu bằng "--") thành mục tiêu.
+        let goal: String = args[pos + 1..]
+            .iter()
+            .take_while(|a| !a.starts_with("--"))
+            .cloned()
+            .collect::<Vec<_>>()
+            .join(" ");
+        if goal.trim().is_empty() {
+            eprintln!("❌ Thiếu mục tiêu: --plan \"mô tả mục tiêu\"");
+            std::process::exit(2);
+        }
+        let run = args.iter().any(|a| a == "--run");
+        let echo = args.iter().any(|a| a == "--echo");
+        let roles = args.iter().any(|a| a == "--roles");
+        let git = args.iter().any(|a| a == "--git");
+        let jobs = args
+            .iter()
+            .position(|a| a == "--jobs")
+            .and_then(|p| args.get(p + 1))
+            .and_then(|v| v.parse::<usize>().ok())
+            .unwrap_or(0);
+        return run_plan(&goal, run, echo, roles, git, jobs).await;
     }
 
     println!("🧠 SynapzCore Orchestrator — khởi động Tokio runtime\n");
@@ -87,21 +180,27 @@ async fn main() -> anyhow::Result<()> {
     let st = state::new_shared_state();
     let (coord, chans) = Coordinator::new(st.clone(), 64, 256);
 
-    // 3. Spawn 3 agent. Mỗi agent có 1 receiver riêng từ broadcast.
-    let mut handles = Vec::new();
-    handles.push(spawn_agent("coder-01", "claude-sonnet-4.6", AgentRole::Coder,
-        chans.tx_command.subscribe(), chans.tx_report.clone()));
-    handles.push(spawn_agent("tester-01", "claude-haiku-4.5", AgentRole::Tester,
-        chans.tx_command.subscribe(), chans.tx_report.clone()));
-    handles.push(spawn_agent("researcher-01", "glm-5", AgentRole::Researcher,
-        chans.tx_command.subscribe(), chans.tx_report.clone()));
+    // 3. Spawn agent từ roster (mặc định hoặc SYNAPZ_AGENTS). Mỗi agent 1 receiver.
+    let roster = default_roster();
+    let handles: Vec<_> = roster
+        .iter()
+        .map(|(id, model, role)| {
+            spawn_agent(
+                id,
+                model,
+                role.clone(),
+                chans.tx_command.subscribe(),
+                chans.tx_report.clone(),
+            )
+        })
+        .collect();
 
-    // Đăng ký vào state.
+    // Đăng ký vào state từ cùng roster (single source of truth).
     {
         let mut s = st.write().await;
-        s.register(roles::AgentManifest::new("coder-01", "claude-sonnet-4.6", AgentRole::Coder));
-        s.register(roles::AgentManifest::new("tester-01", "claude-haiku-4.5", AgentRole::Tester));
-        s.register(roles::AgentManifest::new("researcher-01", "glm-5", AgentRole::Researcher));
+        for (id, model, role) in &roster {
+            s.register(roles::AgentManifest::new(id, model, role.clone()));
+        }
     }
 
     // Drop bản tx_report gốc để khi mọi agent xong, rx_report đóng đúng cách.
@@ -109,9 +208,14 @@ async fn main() -> anyhow::Result<()> {
 
     // 4. Spawn task gom báo cáo.
     let report_task = {
-        let coord_ref = Coordinator { tx_command: coord.tx_command.clone(), state: st.clone() };
+        let coord_ref = Coordinator {
+            tx_command: coord.tx_command.clone(),
+            state: st.clone(),
+        };
         let rx = chans.rx_report;
-        tokio::spawn(async move { coord_ref.collect_reports(rx).await; })
+        tokio::spawn(async move {
+            coord_ref.collect_reports(rx).await;
+        })
     };
 
     // 5. Orchestrator phát lệnh.
@@ -148,7 +252,9 @@ async fn main() -> anyhow::Result<()> {
     let s = st.read().await;
     println!(
         "\n📊 Tổng kết: {} agent | {} task xong | {} task lỗi",
-        s.agent_count(), s.tasks_completed, s.tasks_failed
+        s.agent_count(),
+        s.tasks_completed,
+        s.tasks_failed
     );
     println!("🏁 Orchestrator kết thúc.");
     Ok(())
@@ -163,33 +269,69 @@ async fn run_scan() -> anyhow::Result<()> {
     for a in &agents {
         use roles::DetectStatus::*;
         let icon = match a.status {
-            Connected => { n_conn += 1; "🟢" }
-            NotConfigured => { n_cfg += 1; "🟡" }
-            NotInstalled => { n_none += 1; "⚫" }
-            Unknown => { n_unk += 1; "⚪" }
+            Connected => {
+                n_conn += 1;
+                "🟢"
+            }
+            NotConfigured => {
+                n_cfg += 1;
+                "🟡"
+            }
+            NotInstalled => {
+                n_none += 1;
+                "⚫"
+            }
+            Unknown => {
+                n_unk += 1;
+                "⚪"
+            }
         };
         let ver = a.version.as_deref().unwrap_or("");
-        println!("{} {:<20} {:<16} {}", icon, a.name, a.status.to_string(), ver);
+        println!(
+            "{} {:<20} {:<16} {}",
+            icon,
+            a.name,
+            a.status.to_string(),
+            ver
+        );
     }
 
     println!(
         "\n📊 {} agent | 🟢 {} Connected | 🟡 {} chưa cấu hình | ⚫ {} chưa cài | ⚪ {} unknown",
-        agents.len(), n_conn, n_cfg, n_none, n_unk
+        agents.len(),
+        n_conn,
+        n_cfg,
+        n_none,
+        n_unk
     );
 
     // Nối cứng các Connected agent vào SystemState.
-    let connected: Vec<_> = agents.iter().filter(|a| a.status == roles::DetectStatus::Connected).collect();
+    let connected: Vec<_> = agents
+        .iter()
+        .filter(|a| a.status == roles::DetectStatus::Connected)
+        .collect();
     if !connected.is_empty() {
         let st = state::new_shared_state();
         {
             let mut s = st.write().await;
             for a in &connected {
-                s.register(roles::AgentManifest::new(&a.name, a.version.clone().unwrap_or_default(), AgentRole::Unassigned));
+                s.register(roles::AgentManifest::new(
+                    &a.name,
+                    a.version.clone().unwrap_or_default(),
+                    AgentRole::Unassigned,
+                ));
             }
         }
-        println!("\n🔗 Đã nối cứng {} agent Connected vào SystemState:", connected.len());
+        println!(
+            "\n🔗 Đã nối cứng {} agent Connected vào SystemState:",
+            connected.len()
+        );
         for a in &connected {
-            println!("   • {} → {}", a.name, a.binary_path.as_deref().unwrap_or("?"));
+            println!(
+                "   • {} → {}",
+                a.name,
+                a.binary_path.as_deref().unwrap_or("?")
+            );
         }
     }
 
@@ -204,10 +346,15 @@ async fn run_scan() -> anyhow::Result<()> {
 async fn run_live(prompt: String) -> anyhow::Result<()> {
     let json_mode = std::env::args().any(|a| a == "--json");
     use roles::DetectStatus;
-    if !json_mode { println!("🚀 SynapzCore LIVE — quét + nối agent CLI thật\n"); }
+    if !json_mode {
+        println!("🚀 SynapzCore LIVE — quét + nối agent CLI thật\n");
+    }
 
     let agents = scanner::scan_ai_agents().await;
-    let connected: Vec<_> = agents.into_iter().filter(|a| a.status == DetectStatus::Connected).collect();
+    let connected: Vec<_> = agents
+        .into_iter()
+        .filter(|a| a.status == DetectStatus::Connected)
+        .collect();
 
     // Lọc agent có cách gọi CLI headless.
     let runnable: Vec<_> = connected
@@ -217,7 +364,10 @@ async fn run_live(prompt: String) -> anyhow::Result<()> {
 
     if runnable.is_empty() {
         if json_mode {
-            println!("{}", serde_json::json!({"ok": false, "reason": "no runnable agent", "results": []}));
+            println!(
+                "{}",
+                serde_json::json!({"ok": false, "reason": "no runnable agent", "results": []})
+            );
         } else {
             println!("⚠️  Không agent Connected nào có cách gọi CLI headless.");
         }
@@ -239,8 +389,12 @@ async fn run_live(prompt: String) -> anyhow::Result<()> {
     for (i, (name, inv)) in runnable.iter().enumerate() {
         let id = format!("{}-{}", name.replace(' ', "_").to_lowercase(), i);
         handles.push(agent::spawn_live_agent(
-            &id, name, AgentRole::Coder, inv.clone(),
-            chans.tx_command.subscribe(), chans.tx_report.clone(),
+            &id,
+            name,
+            AgentRole::Coder,
+            inv.clone(),
+            chans.tx_command.subscribe(),
+            chans.tx_report.clone(),
         ));
     }
     let expected = runnable.len();
@@ -249,25 +403,42 @@ async fn run_live(prompt: String) -> anyhow::Result<()> {
     // Gom report — JSON mode thu vào Vec, in cuối; text mode in live.
     let collected = std::sync::Arc::new(tokio::sync::Mutex::new(Vec::<serde_json::Value>::new()));
     let report_task = {
-        let coord_ref = Coordinator { tx_command: coord.tx_command.clone(), state: st.clone() };
+        let coord_ref = Coordinator {
+            tx_command: coord.tx_command.clone(),
+            state: st.clone(),
+        };
         let rx = chans.rx_report;
         let col = collected.clone();
-        tokio::spawn(async move { coord_ref.collect_reports_json(rx, col, json_mode).await; })
+        tokio::spawn(async move {
+            coord_ref.collect_reports_json(rx, col, json_mode).await;
+        })
     };
 
     tokio::time::sleep(std::time::Duration::from_millis(50)).await;
-    if !json_mode { println!("\n📡 Giao task cho tất cả: \"{}\"\n", prompt); }
-    coord.dispatch(Command::Assign { task_id: "LIVE-1".into(), target_role: None, prompt: prompt.clone() })?;
+    if !json_mode {
+        println!("\n📡 Giao task cho tất cả: \"{}\"\n", prompt);
+    }
+    coord.dispatch(Command::Assign {
+        task_id: "LIVE-1".into(),
+        target_role: None,
+        prompt: prompt.clone(),
+    })?;
 
     // Đợi đủ report (mỗi agent 1 TaskDone/TaskError) hoặc timeout cứng.
     let deadline = std::time::Instant::now() + std::time::Duration::from_secs(180);
     loop {
-        if collected.lock().await.len() >= expected { break; }
-        if std::time::Instant::now() > deadline { break; }
+        if collected.lock().await.len() >= expected {
+            break;
+        }
+        if std::time::Instant::now() > deadline {
+            break;
+        }
         tokio::time::sleep(std::time::Duration::from_millis(300)).await;
     }
     coord.dispatch(Command::Shutdown)?;
-    for h in handles { let _ = h.await; }
+    for h in handles {
+        let _ = h.await;
+    }
     let _ = report_task.await;
 
     let s = st.read().await;
@@ -283,7 +454,10 @@ async fn run_live(prompt: String) -> anyhow::Result<()> {
         });
         println!("{}", serde_json::to_string(&out)?);
     } else {
-        println!("\n📊 {} task xong | {} task lỗi", s.tasks_completed, s.tasks_failed);
+        println!(
+            "\n📊 {} task xong | {} task lỗi",
+            s.tasks_completed, s.tasks_failed
+        );
     }
     Ok(())
 }
@@ -291,7 +465,7 @@ async fn run_live(prompt: String) -> anyhow::Result<()> {
 /// GRAPH mode: nạp TaskGraph từ JSON, phân tích tầng, chạy song song theo tầng.
 /// Đây là hiện thực Giai đoạn 1 (Fan-Out) + barrier Giai đoạn 3 ở mức điều phối.
 async fn run_graph(path: &str, echo: bool) -> anyhow::Result<()> {
-    use parallel_executor::{cli_executor, echo_executor, ParallelExecutor};
+    use parallel_executor::{ParallelExecutor, cli_executor, echo_executor};
     use task_graph::TaskGraph;
 
     let raw = std::fs::read_to_string(path)
@@ -303,11 +477,21 @@ async fn run_graph(path: &str, echo: bool) -> anyhow::Result<()> {
     let layers = graph.layers().map_err(|e| anyhow::anyhow!("{}", e))?;
 
     println!("🧠 SynapzCore — Parallel Graph Executor");
-    println!("📂 Đồ thị: {} ({} task, {} tầng)", path, graph.len(), layers.len());
+    println!(
+        "📂 Đồ thị: {} ({} task, {} tầng)",
+        path,
+        graph.len(),
+        layers.len()
+    );
     println!("⚡ Độ song song tối đa: {}\n", graph.max_parallelism());
     for (i, layer) in layers.iter().enumerate() {
         let ids: Vec<&str> = layer.iter().map(|n| n.id.as_str()).collect();
-        println!("   Tầng {}: [{}] — {} task song song", i, ids.join(", "), layer.len());
+        println!(
+            "   Tầng {}: [{}] — {} task song song",
+            i,
+            ids.join(", "),
+            layer.len()
+        );
     }
     println!();
 
@@ -334,16 +518,21 @@ async fn run_graph(path: &str, echo: bool) -> anyhow::Result<()> {
         let detail = match &r.outcome {
             parallel_executor::TaskOutcome::Success(o) => {
                 let s = o.replace('\n', " ");
-                if s.len() > 80 { format!("{}…", &s[..80]) } else { s }
+                truncate_chars(&s, 80)
             }
             parallel_executor::TaskOutcome::Failed(e) => format!("LỖI: {}", e),
             parallel_executor::TaskOutcome::Timeout => "TIMEOUT".to_string(),
         };
-        println!("   {} [tầng {}] {} ({}ms): {}", icon, r.layer, r.task_id, r.elapsed_ms, detail);
+        println!(
+            "   {} [tầng {}] {} ({}ms): {}",
+            icon, r.layer, r.task_id, r.elapsed_ms, detail
+        );
     }
     println!(
         "\n🏁 {} task xong | {} hỏng | {} tầng",
-        report.succeeded(), report.failed(), report.total_layers
+        report.succeeded(),
+        report.failed(),
+        report.total_layers
     );
 
     // Lưu report JSON cho UI/dashboard.
@@ -361,7 +550,10 @@ async fn run_graph(path: &str, echo: bool) -> anyhow::Result<()> {
         })).collect::<Vec<_>>(),
     });
     let _ = std::fs::create_dir_all("data");
-    std::fs::write("data/last_graph_run.json", serde_json::to_string_pretty(&json)?)?;
+    std::fs::write(
+        "data/last_graph_run.json",
+        serde_json::to_string_pretty(&json)?,
+    )?;
     println!("💾 Lưu data/last_graph_run.json");
     Ok(())
 }
@@ -371,7 +563,10 @@ async fn run_graph(path: &str, echo: bool) -> anyhow::Result<()> {
 /// tạo branch, add, commit, về base) được SERIALIZE qua Mutex vì 1 working tree
 /// không thể ở nhiều branch cùng lúc. Mỗi task: lock → checkout base → tạo branch
 /// agent/<task> → unlock → chạy AI → lock → ghi output ra file → commit → về base.
-fn git_wrap_executor(inner: parallel_executor::Executor, repo: std::path::PathBuf) -> parallel_executor::Executor {
+fn git_wrap_executor(
+    inner: parallel_executor::Executor,
+    repo: std::path::PathBuf,
+) -> parallel_executor::Executor {
     use git_isolation::GitBranchManager;
     let gitlock = std::sync::Arc::new(tokio::sync::Mutex::new(()));
     let mgr = std::sync::Arc::new(GitBranchManager::new(repo));
@@ -398,7 +593,9 @@ fn git_wrap_executor(inner: parallel_executor::Executor, repo: std::path::PathBu
                 if let Ok(out) = &result {
                     let fname = format!("{}.out", task_id.replace('/', "_"));
                     let _ = std::fs::write(mgr.repo.join(&fname), out);
-                    let _ = mgr.commit_all(&format!("feat({}): output từ agent", task_id)).await;
+                    let _ = mgr
+                        .commit_all(&format!("feat({}): output từ agent", task_id))
+                        .await;
                 }
                 // về base để task kế / merge sau làm việc.
                 let _ = mgr.checkout("main").await;
@@ -424,11 +621,17 @@ async fn merge_agent_branches(graph: &task_graph::TaskGraph, repo: std::path::Pa
     for node in &graph.nodes {
         let branch = mgr.branch_name(&node.id);
         match mgr.merge_into_current(&branch).await {
-            Ok(true) => { clean += 1; println!("   ✅ merge {} sạch", branch); }
+            Ok(true) => {
+                clean += 1;
+                println!("   ✅ merge {} sạch", branch);
+            }
             Ok(false) => {
                 conflict += 1;
                 let files = mgr.conflicted_files().await;
-                println!("   ⚠️  {} CONFLICT: {:?} → abort (cần xử lý tay)", branch, files);
+                println!(
+                    "   ⚠️  {} CONFLICT: {:?} → abort (cần xử lý tay)",
+                    branch, files
+                );
                 let _ = mgr.abort_merge().await;
             }
             Err(e) => println!("   ⏭️  {} bỏ qua ({})", branch, e),
@@ -472,8 +675,14 @@ fn read_free_mem_kb() -> Option<u64> {
 }
 
 /// PIPELINE mode: chạy trọn 4 giai đoạn parallel orchestration từ file JSON.
-async fn run_pipeline(path: &str, echo: bool, roles: bool, git: bool, jobs: usize) -> anyhow::Result<()> {
-    use pipeline::{always_ok_executor, Pipeline, PipelineConfig};
+async fn run_pipeline(
+    path: &str,
+    echo: bool,
+    roles: bool,
+    git: bool,
+    jobs: usize,
+) -> anyhow::Result<()> {
+    use pipeline::{Pipeline, PipelineConfig, always_ok_executor};
     use task_graph::TaskGraph;
     use work_buffer::WorkBuffer;
 
@@ -496,16 +705,36 @@ async fn run_pipeline(path: &str, echo: bool, roles: bool, git: bool, jobs: usiz
     };
 
     println!("🧠 SynapzCore — PIPELINE (4 giai đoạn parallel orchestration)");
-    println!("📂 Đồ thị: {} ({} task, {} tầng)", path, graph.len(), layers.len());
+    println!(
+        "📂 Đồ thị: {} ({} task, {} tầng)",
+        path,
+        graph.len(),
+        layers.len()
+    );
     println!("⚡ Độ song song tối đa: {}\n", graph.max_parallelism());
     println!("━━━ GIAI ĐOẠN 1: FAN-OUT (phân tầng phụ thuộc) ━━━");
     for (i, layer) in layers.iter().enumerate() {
         let ids: Vec<&str> = layer.iter().map(|n| n.id.as_str()).collect();
-        let roleinfo: Vec<String> = layer.iter()
-            .map(|n| format!("{}{}", n.id, n.role.as_ref().map(|r| format!("[{}]", r)).unwrap_or_default()))
+        let roleinfo: Vec<String> = layer
+            .iter()
+            .map(|n| {
+                format!(
+                    "{}{}",
+                    n.id,
+                    n.role
+                        .as_ref()
+                        .map(|r| format!("[{}]", r))
+                        .unwrap_or_default()
+                )
+            })
             .collect();
         let _ = ids;
-        println!("   Tầng {}: [{}] — {} task song song", i, roleinfo.join(", "), layer.len());
+        println!(
+            "   Tầng {}: [{}] — {} task song song",
+            i,
+            roleinfo.join(", "),
+            layer.len()
+        );
     }
     println!();
 
@@ -540,12 +769,22 @@ async fn run_pipeline(path: &str, echo: bool, roles: bool, git: bool, jobs: usiz
     };
 
     if max_concurrent > 0 {
-        println!("🚦 Concurrency: tối đa {} task đồng thời{}\n", max_concurrent,
-            if jobs == 0 { " (auto theo RAM)" } else { " (--jobs)" });
+        println!(
+            "🚦 Concurrency: tối đa {} task đồng thời{}\n",
+            max_concurrent,
+            if jobs == 0 {
+                " (auto theo RAM)"
+            } else {
+                " (--jobs)"
+            }
+        );
     } else {
         println!("🚦 Concurrency: không giới hạn\n");
     }
-    let cfg = PipelineConfig { max_concurrent, ..PipelineConfig::default() };
+    let cfg = PipelineConfig {
+        max_concurrent,
+        ..PipelineConfig::default()
+    };
     let pipe = Pipeline::new(executor, cfg);
     let mut buffer = WorkBuffer::new();
     let start = std::time::Instant::now();
@@ -558,14 +797,28 @@ async fn run_pipeline(path: &str, echo: bool, roles: bool, git: bool, jobs: usiz
     }
 
     println!("━━━ GIAI ĐOẠN 2: STATE ISOLATION (staging buffer) ━━━");
-    println!("   📦 {} artifact staged | {} task có output\n", buffer.total(), buffer.task_count());
+    println!(
+        "   📦 {} artifact staged | {} task có output\n",
+        buffer.total(),
+        buffer.task_count()
+    );
 
     println!("━━━ GIAI ĐOẠN 3: FAN-IN / SMART MERGE ━━━");
-    println!("   📄 Code: {} file sạch | {} xung đột", report.code_clean, report.code_conflicts);
-    println!("   🗂️  Data: {} record duy nhất | {} trùng đã loại\n", report.data_unique, report.data_dupes_removed);
+    println!(
+        "   📄 Code: {} file sạch | {} xung đột",
+        report.code_clean, report.code_conflicts
+    );
+    println!(
+        "   🗂️  Data: {} record duy nhất | {} trùng đã loại\n",
+        report.data_unique, report.data_dupes_removed
+    );
 
     println!("━━━ GIAI ĐOẠN 4: SELF-CORRECT (cô lập + retry) ━━━");
-    println!("   🔧 {} task sửa được | 🛑 {} bỏ cuộc", report.fixed.len(), report.gave_up.len());
+    println!(
+        "   🔧 {} task sửa được | 🛑 {} bỏ cuộc",
+        report.fixed.len(),
+        report.gave_up.len()
+    );
     if !report.gave_up.is_empty() {
         println!("   ⚠️  Cần người can thiệp: {}", report.gave_up.join(", "));
     }
@@ -574,25 +827,220 @@ async fn run_pipeline(path: &str, echo: bool, roles: bool, git: bool, jobs: usiz
     println!("📊 KẾT QUẢ ({:?}):", elapsed);
     for r in &report.run.results {
         let icon = if r.outcome.is_success() { "✅" } else { "❌" };
-        println!("   {} [tầng {}] {} ({}ms)", icon, r.layer, r.task_id, r.elapsed_ms);
+        println!(
+            "   {} [tầng {}] {} ({}ms)",
+            icon, r.layer, r.task_id, r.elapsed_ms
+        );
     }
     println!(
         "\n🏁 {} task xong | {} hỏng | {} tầng | {}",
-        report.run.succeeded(), report.run.failed(), report.run.total_layers,
-        if report.gave_up.is_empty() { "✅ TẤT CẢ XANH" } else { "⚠️ CÓ TASK BỎ CUỘC" }
+        report.run.succeeded(),
+        report.run.failed(),
+        report.run.total_layers,
+        if report.gave_up.is_empty() {
+            "✅ TẤT CẢ XANH"
+        } else {
+            "⚠️ CÓ TASK BỎ CUỘC"
+        }
     );
 
     let _ = std::fs::create_dir_all("data");
-    std::fs::write("data/last_pipeline_run.json", serde_json::to_string_pretty(&report.to_json())?)?;
-    std::fs::write("data/last_buffer_snapshot.json", serde_json::to_string_pretty(&buffer.snapshot_json())?)?;
+    std::fs::write(
+        "data/last_pipeline_run.json",
+        serde_json::to_string_pretty(&report.to_json())?,
+    )?;
+    std::fs::write(
+        "data/last_buffer_snapshot.json",
+        serde_json::to_string_pretty(&buffer.snapshot_json())?,
+    )?;
     println!("💾 Lưu data/last_pipeline_run.json + data/last_buffer_snapshot.json");
     Ok(())
+}
+
+/// Nạp .env (đơn giản) vào env vars nếu chưa set — để đọc NINEROUTER_* khi chạy CLI.
+fn load_dotenv() {
+    for candidate in [".env", "../.env", "../../.env"] {
+        if let Ok(content) = std::fs::read_to_string(candidate) {
+            for line in content.lines() {
+                let line = line.trim();
+                if line.is_empty() || line.starts_with('#') {
+                    continue;
+                }
+                if let Some((k, v)) = line.split_once('=') {
+                    let k = k.trim();
+                    if std::env::var(k).is_err() {
+                        unsafe {
+                            std::env::set_var(k, v.trim());
+                        }
+                    }
+                }
+            }
+            return; // nạp file .env đầu tiên tìm thấy
+        }
+    }
+}
+
+/// PLAN mode: orchestrator gọi LLM phân rã mục tiêu → TaskGraph → (tùy chọn) chạy.
+async fn run_plan(
+    goal: &str,
+    run: bool,
+    echo: bool,
+    roles: bool,
+    git: bool,
+    jobs: usize,
+) -> anyhow::Result<()> {
+    println!("🧠 SynapzCore — PLANNER (#3): tự phân rã mục tiêu → TaskGraph");
+    println!("🎯 Mục tiêu: {goal}\n");
+
+    // LLM lập kế hoạch: ưu tiên 9router HTTP trực tiếp (đáng tin hơn), fallback CLI chain.
+    let mut graph_opt: Option<task_graph::TaskGraph> = None;
+    let mut last_err = String::new();
+
+    // 1) 9router trực tiếp nếu có NINEROUTER_KEY.
+    if let (Ok(key), Ok(url)) = (
+        std::env::var("NINEROUTER_KEY"),
+        std::env::var("NINEROUTER_URL"),
+    ) && !key.is_empty()
+    {
+        let model =
+            std::env::var("NINEROUTER_MODEL").unwrap_or_else(|_| "claude-opus-4.8".to_string());
+        println!("🤖 Lập kế hoạch qua 9router trực tiếp (model {model})...");
+        match planner::plan_with_9router(goal, &url, &key, &model, 120).await {
+            Ok(g) => {
+                println!("✅ 9router trả kế hoạch hợp lệ.");
+                graph_opt = Some(g);
+            }
+            Err(e) => {
+                eprintln!("⚠️  9router thất bại: {e}");
+                last_err = e;
+            }
+        }
+    }
+
+    // 2) Fallback: chuỗi CLI agent (Claude → Hermes → Codex).
+    if graph_opt.is_none() {
+        let planner_agents = ["Claude Code", "Hermes Agent", "OpenAI Codex CLI"];
+        let per_attempt_timeout = 120u64;
+        for name in planner_agents {
+            let inv = match runner::invocation_for(name) {
+                Some(i) => i,
+                None => continue,
+            };
+            println!(
+                "🤖 Thử lập kế hoạch qua {} ({} {})...",
+                name,
+                inv.program,
+                inv.args.join(" ")
+            );
+            match planner::plan_with_llm(goal, &inv, per_attempt_timeout).await {
+                Ok(g) => {
+                    println!("✅ {} trả kế hoạch hợp lệ.", name);
+                    graph_opt = Some(g);
+                    break;
+                }
+                Err(e) => {
+                    eprintln!("⚠️  {} thất bại: {}", name, e);
+                    last_err = e;
+                }
+            }
+        }
+    }
+    let graph = match graph_opt {
+        Some(g) => g,
+        None => {
+            eprintln!("❌ Mọi planner (9router + CLI) đều thất bại. Lỗi cuối: {last_err}");
+            std::process::exit(1);
+        }
+    };
+
+    let layers = graph.layers().map_err(|e| anyhow::anyhow!("{}", e))?;
+    println!(
+        "\n✅ Kế hoạch sinh ra: {} task, {} tầng (song song tối đa {})",
+        graph.len(),
+        layers.len(),
+        graph.max_parallelism()
+    );
+    for (i, layer) in layers.iter().enumerate() {
+        let info: Vec<String> = layer
+            .iter()
+            .map(|n| {
+                format!(
+                    "{}{}",
+                    n.id,
+                    n.role
+                        .as_ref()
+                        .map(|r| format!("[{}]", r))
+                        .unwrap_or_default()
+                )
+            })
+            .collect();
+        println!("   Tầng {}: [{}]", i, info.join(", "));
+    }
+
+    // Lưu graph để xem trước / chạy lại.
+    let _ = std::fs::create_dir_all("data");
+    let graph_json = serde_json::to_string_pretty(&graph)?;
+    std::fs::write("data/last_plan.json", &graph_json)?;
+    std::fs::write("data/planned_graph.json", &graph_json)?;
+    println!("\n💾 Lưu data/last_plan.json + data/planned_graph.json");
+
+    if run {
+        println!("\n▶️  --run: chạy pipeline trên kế hoạch vừa sinh...\n");
+        return run_pipeline("data/planned_graph.json", echo, roles, git, jobs).await;
+    } else {
+        println!(
+            "\nℹ️  Xem trước kế hoạch. Chạy thật: --pipeline data/planned_graph.json [--roles]"
+        );
+    }
+    Ok(())
+}
+
+/// Truncate to at most max chars (not bytes) — UTF-8 safe; appends … if cut.
+fn truncate_chars(s: &str, max: usize) -> String {
+    if s.chars().count() <= max {
+        s.to_string()
+    } else {
+        let head: String = s.chars().take(max).collect();
+        format!("{head}…")
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use roles::{AgentManifest, Report};
+
+    #[test]
+    fn parse_role_is_case_insensitive() {
+        assert_eq!(parse_role("coder"), Some(AgentRole::Coder));
+        assert_eq!(parse_role("TESTER"), Some(AgentRole::Tester));
+        assert_eq!(parse_role("Researcher"), Some(AgentRole::Researcher));
+        assert_eq!(parse_role("nope"), None);
+    }
+
+    #[test]
+    fn default_roster_has_three_distinct_roles_without_env() {
+        // Engine ships a usable roster with generic model names (no personal config).
+        unsafe { std::env::remove_var("SYNAPZ_AGENTS") };
+        let r = default_roster();
+        assert_eq!(r.len(), 3);
+        assert!(r.iter().any(|(_, _, role)| *role == AgentRole::Coder));
+        assert!(r.iter().any(|(_, m, _)| m.starts_with("model-")));
+    }
+
+    #[test]
+    fn truncate_chars_is_utf8_safe() {
+        // Regression: byte-slicing &s[..n] panicked mid-multibyte char.
+        let s = "Kết quả từ các bước phụ thuộc";
+        // Cutting at a boundary that lands inside a Vietnamese char must not panic.
+        let out = truncate_chars(s, 5);
+        assert_eq!(out.chars().count(), 6); // 5 chars + ellipsis
+        assert!(out.ends_with("…"));
+        // Short input is returned unchanged, no ellipsis.
+        assert_eq!(truncate_chars("abc", 10), "abc");
+        // ASCII boundary still works.
+        assert_eq!(truncate_chars("abcdef", 3), "abc…");
+    }
     use tokio::sync::{broadcast, mpsc};
 
     #[tokio::test]
@@ -604,11 +1052,13 @@ mod tests {
         // bỏ qua Report::Registered
         let _ = rx_rep.recv().await;
 
-        tx_cmd.send(Command::Assign {
-            task_id: "T1".into(),
-            target_role: Some(AgentRole::Coder),
-            prompt: "hello".into(),
-        }).unwrap();
+        tx_cmd
+            .send(Command::Assign {
+                task_id: "T1".into(),
+                target_role: Some(AgentRole::Coder),
+                prompt: "hello".into(),
+            })
+            .unwrap();
 
         let rep = rx_rep.recv().await.unwrap();
         match rep {
@@ -627,11 +1077,13 @@ mod tests {
         let _ = rx_rep.recv().await; // Registered
 
         // lệnh cho Coder — Tester phải bỏ qua
-        tx_cmd.send(Command::Assign {
-            task_id: "T9".into(),
-            target_role: Some(AgentRole::Coder),
-            prompt: "x".into(),
-        }).unwrap();
+        tx_cmd
+            .send(Command::Assign {
+                task_id: "T9".into(),
+                target_role: Some(AgentRole::Coder),
+                prompt: "x".into(),
+            })
+            .unwrap();
         // Ping để chắc chắn agent vẫn sống và phản hồi
         tx_cmd.send(Command::Ping).unwrap();
 

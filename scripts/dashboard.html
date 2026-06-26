@@ -2046,6 +2046,75 @@
             border-color: var(--accent);
         }
 
+        .coord-attach-btn {
+            background: var(--bg-hover);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            color: var(--text-muted);
+            cursor: pointer;
+            font-size: 1rem;
+            padding: 0.35rem 0.5rem;
+            line-height: 1;
+            flex: 0 0 auto;
+        }
+
+        .coord-attach-btn:hover {
+            color: var(--text);
+            border-color: var(--accent);
+        }
+
+        .coord-thumbs {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.4rem;
+            padding: 0.5rem 0.75rem 0;
+        }
+
+        .coord-thumb {
+            position: relative;
+            width: 54px;
+            height: 54px;
+            border-radius: 6px;
+            overflow: hidden;
+            border: 1px solid var(--border);
+        }
+
+        .coord-thumb img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .coord-thumb-x {
+            position: absolute;
+            top: -4px;
+            right: -4px;
+            background: var(--danger, #e05a5a);
+            color: #fff;
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            font-size: 11px;
+            line-height: 16px;
+            text-align: center;
+            cursor: pointer;
+        }
+
+        .cb-images {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.4rem;
+            margin-top: 0.4rem;
+        }
+
+        .cb-images img {
+            max-width: 180px;
+            max-height: 180px;
+            border-radius: 8px;
+            border: 1px solid var(--border);
+            cursor: pointer;
+        }
+
         .coord-sidebar {
             display: flex;
             flex-direction: column;
@@ -3031,6 +3100,15 @@
             border-radius: 50%;
         }
 
+        .pl-role {
+            font-size: .64rem;
+            font-weight: 600;
+            padding: 1px 6px;
+            border-radius: 6px;
+            letter-spacing: .02em;
+            text-transform: uppercase;
+        }
+
         .pl-task.ok .pl-dot {
             background: #22c55e;
             box-shadow: 0 0 8px #22c55e;
@@ -3139,32 +3217,56 @@
 
         .cst-node.node-sm .cst-node-card {
             padding: .5rem .6rem;
-            min-width: 120px; max-width: 138px;
+            min-width: 120px;
+            max-width: 138px;
         }
+
         .cst-node.node-sm .cst-node-avatar {
-            width: 28px; height: 28px; font-size: .7rem;
+            width: 28px;
+            height: 28px;
+            font-size: .7rem;
         }
-        .cst-node.node-sm .cst-node-name { font-size: .72rem; }
-        .cst-node.node-sm .cst-node-role { font-size: .62rem; }
-        .cst-node.node-sm .cst-node-task { font-size: .68rem; }
+
+        .cst-node.node-sm .cst-node-name {
+            font-size: .72rem;
+        }
+
+        .cst-node.node-sm .cst-node-role {
+            font-size: .62rem;
+        }
+
+        .cst-node.node-sm .cst-node-task {
+            font-size: .68rem;
+        }
+
         .compliance-badge {
-            font-size: .58rem; font-weight: 600; letter-spacing: .03em;
-            padding: 1px 5px; border-radius: 4px; margin-left: auto;
+            font-size: .58rem;
+            font-weight: 600;
+            letter-spacing: .03em;
+            padding: 1px 5px;
+            border-radius: 4px;
+            margin-left: auto;
             white-space: nowrap;
         }
+
         .compliance-badge.probation {
-            background: rgba(239,68,68,.18); color: #f87171;
-            border: 1px solid rgba(239,68,68,.35);
+            background: rgba(239, 68, 68, .18);
+            color: #f87171;
+            border: 1px solid rgba(239, 68, 68, .35);
         }
+
         .compliance-badge.compliant {
-            background: rgba(34,197,94,.14); color: #4ade80;
-            border: 1px solid rgba(34,197,94,.3);
+            background: rgba(34, 197, 94, .14);
+            color: #4ade80;
+            border: 1px solid rgba(34, 197, 94, .3);
         }
+
         .cst-link.child-link {
             stroke-width: 1px;
             stroke-dasharray: 4 3;
             opacity: 0.5;
         }
+
         .cst-link.busy {
             stroke: #a78bfa;
             stroke-width: 3;
@@ -3237,8 +3339,9 @@
             position: absolute;
             z-index: 2;
             width: 190px;
-            transform: translate(-50%, -50%);
-            transition: top .6s cubic-bezier(.2, .8, .2, 1), left .6s cubic-bezier(.2, .8, .2, 1);
+            transform: translate(-50%, -50%) scale(var(--cscale, 1));
+            transform-origin: center center;
+            transition: top .5s cubic-bezier(.2, .8, .2, 1), left .5s cubic-bezier(.2, .8, .2, 1), transform .3s ease;
         }
 
         .cst-node-card {
@@ -3648,6 +3751,41 @@
             margin-top: .2rem;
         }
 
+        .ag-proc {
+            display: flex;
+            gap: .4rem;
+            margin-top: .55rem;
+        }
+
+        .ag-btn {
+            flex: 1;
+            font-size: .72rem;
+            padding: .32rem 0;
+            border-radius: 7px;
+            border: 1px solid var(--border);
+            background: var(--surface-2, rgba(20, 24, 40, .7));
+            color: var(--text-secondary, #c7d0e0);
+            cursor: pointer;
+            transition: all .15s;
+        }
+
+        .ag-btn.start:hover {
+            border-color: #22c55e;
+            color: #22c55e;
+            box-shadow: 0 0 10px #22c55e33;
+        }
+
+        .ag-btn.stop:hover {
+            border-color: #ef4444;
+            color: #ef4444;
+            box-shadow: 0 0 10px #ef444433;
+        }
+
+        .ag-btn:disabled {
+            opacity: .4;
+            cursor: not-allowed;
+        }
+
         /* iOS-style switch */
         .ag-switch {
             position: relative;
@@ -4034,9 +4172,14 @@
                             <span class="panel-hint" id="coord-online-hint">0 online</span>
                         </div>
                         <div id="coord-msg-list" class="cst-chat-stream"></div>
+                        <div id="coord-thumbs" class="coord-thumbs" style="display:none;"></div>
                         <div class="cst-composer">
+                            <input type="file" id="coord-file" accept="image/*" multiple style="display:none;"
+                                onchange="handleCoordFileSelect(event)">
+                            <button class="coord-attach-btn" title="Đính kèm ảnh"
+                                onclick="document.getElementById('coord-file').click()">📎</button>
                             <input type="text" id="chat-input" class="coord-chat-input"
-                                placeholder="Nhắn Orchestrator..." autocomplete="off">
+                                placeholder="Nhắn Orchestrator... (dán ảnh bằng Ctrl+V)" autocomplete="off">
                             <button class="btn btn-primary" id="chat-send-btn" onclick="sendChatMessage()">Gửi</button>
                         </div>
                     </aside>
@@ -5565,13 +5708,14 @@
                 <div class="ag-meta">${instPill}${livePill}</div>
                 <div class="ag-detail" title="${escapeHtml(a.detail || '')}">${escapeHtml(a.detail || '')}</div>
                 <div class="ag-foot">
-                    <span style="font-size:.74rem;color:var(--text-muted);">${a.enabled ? 'Đang tham gia' : 'Đã tắt'}</span>
-                    <label class="ag-switch">
+                    <span style="font-size:.74rem;color:var(--text-muted);">${a.enabled ? '🟢 Đang chạy + tham gia' : '○ Tắt'}</span>
+                    <label class="ag-switch" title="Bật = chạy tiến trình + vào mạng lưới; Tắt = kill tiến trình + gỡ mạng">
                         <input type="checkbox" ${checked} ${disabled}
-                               onchange="toggleAgent('${escapeAttr(a.agent_id)}','${escapeAttr(a.role)}',this.checked,this)">
+                               onchange="powerAgent('${escapeAttr(a.agent_id)}',this.checked,this)">
                         <span class="ag-slider"></span>
                     </label>
                 </div>
+                ${a.installed ? `<button class="ag-btn" style="width:100%;margin-top:.5rem;" onclick="spawnSub('${escapeAttr(a.agent_id)}')">➕ Nhánh con (sub-agent)</button>` : ''}
             </div>`;
             }).join('');
         }
@@ -5596,6 +5740,64 @@
                 showToast('❌ Lỗi: ' + e.message);
                 if (el) el.disabled = false;
             }
+        }
+
+        async function spawnSub(parentId) {
+            const subId = parentId + '-sub-' + Date.now().toString().slice(-4);
+            try {
+                const r = await fetch('/api/agents/spawn-sub', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ parent_id: parentId, sub_id: subId, role: 'builder' })
+                });
+                const d = await r.json();
+                showToast((d.ok ? '🌿 ' : '⚠️ ') + (d.message || subId));
+            } catch (e) { showToast('❌ ' + e.message); }
+            finally { loadAllAgents(); }
+        }
+
+        async function powerAgent(agentId, on, el) {
+            if (el) el.disabled = true;
+            try {
+                const r = await fetch('/api/agents/power', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ agent_id: agentId, on })
+                });
+                const d = await r.json();
+                showToast((d.ok ? (on ? '🟢 Bật ' : '🛑 Tắt ') : '⚠️ ') + agentId + (d.message ? ' — ' + d.message : ''));
+            } catch (e) {
+                showToast('❌ Lỗi: ' + e.message);
+            } finally {
+                if (el) el.disabled = false;
+                loadAllAgents();
+            }
+        }
+
+        async function startAgentProc(agentId, btn) {
+            if (btn) btn.disabled = true;
+            try {
+                const r = await fetch('/api/agents/start', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ agent_id: agentId })
+                });
+                const d = await r.json();
+                showToast((d.ok ? '✅ ' : '⚠️ ') + (d.message || agentId));
+                loadAllAgents();
+            } catch (e) { showToast('❌ ' + e.message); }
+            finally { if (btn) btn.disabled = false; }
+        }
+
+        async function stopAgentProc(agentId, btn) {
+            if (btn) btn.disabled = true;
+            try {
+                const r = await fetch('/api/agents/stop', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ agent_id: agentId })
+                });
+                const d = await r.json();
+                showToast((d.ok ? '🛑 ' : '⚠️ ') + (d.message || agentId));
+                loadAllAgents();
+            } catch (e) { showToast('❌ ' + e.message); }
+            finally { if (btn) btn.disabled = false; }
         }
 
         async function loadAgentPanel() {
@@ -5635,7 +5837,9 @@
         }
 
         // ─── CONSTELLATION: vẽ orchestrator ở tâm + agent nodes vây quanh ───
-        const ORCHESTRATOR_ROLES = ['orchestrator', 'pipo-hermes'];
+        // Định hướng: Kiro IDE (kiro-ide) = orchestrator (tâm điều phối);
+        // antigravity-ide là IDE khác = builder; pipo-hermes = builder (node vây quanh).
+        const ORCHESTRATOR_ROLES = ['orchestrator', 'kiro', 'kiro-ide'];
         function isBusy(task) {
             return task && (task.status === 'active' || task.status === 'in_progress');
         }
@@ -5678,16 +5882,26 @@
             const level1 = others.filter(a => !a.parent_id);   // cấp 1 — nối Orchestrator
             const level2 = others.filter(a => !!a.parent_id);  // cấp 2 — nối parent
 
-            // Kích thước node theo cấp
-            const N1_W = 180, N1_H = 140;  // cấp 1
-            const N2_W = 140, N2_H = 110;  // cấp 2 (nhỏ hơn ~0.78x)
-            const mX = N1_W / 2 + 16, mTop = N1_H / 2 + 10;
-
-            // 360° full circle — phân bố đều, bắt đầu từ đỉnh (-90°)
+            // ── RESPONSIVE: co node theo SỐ LƯỢNG (cấp 1) + KÍCH THƯỚC màn hình ──
             const n1 = Math.max(level1.length, 1);
-            const R = Math.min(W, H) * 0.36;  // bán kính vòng tròn cấp 1
+            const R = Math.min(W, H) * 0.36;            // bán kính vòng cấp 1
+            const baseW = 190;                           // bề ngang node gốc (px)
+            const arcPer = (2 * Math.PI * R) / n1;       // cung khả dụng mỗi node trên vòng
+            const fitScale = arcPer / (baseW * 1.18);    // co để node không đè nhau trên vòng
+            const screenScale = Math.min(W, H) / 720;    // co thêm trên màn hình nhỏ
+            const scale = Math.max(0.5, Math.min(1, fitScale, screenScale));
+
+            // Kích thước HIỆU DỤNG (gốc × scale) để đặt vị trí + chừa lề biên.
+            const N1_W = 180 * scale, N1_H = 150 * scale;  // cấp 1
+            const N2_W = 140 * scale, N2_H = 116 * scale;  // cấp 2
+            const mX = N1_W / 2 + 14, mTop = N1_H / 2 + 10;
+            // Khoảng cách node con = nửa parent + nửa con + đệm → KHÔNG đè parent.
+            const childR = (N1_W / 2 + N2_W / 2) + 30 * scale;
+
             const rX = Math.min(R, cx - mX);
             const rY = Math.min(R, cy - mTop);
+            // Vòng TRÒN (bán kính đều) → mọi nan hoa dài bằng nhau → CÂN ĐỐI.
+            const ringR = Math.min(rX, rY);
 
             // Map agent_id → tọa độ để nối link cấp 2
             const posMap = {};
@@ -5695,12 +5909,12 @@
 
             let links = '', nodesHtml = '';
 
-            // Render cấp 1 — 360° phân bố đều
+            // Render cấp 1 — 360° phân bố đều trên VÒNG TRÒN bán kính đều
             level1.forEach((a, i) => {
                 // Chia đều 360°, bắt đầu từ -90° (đỉnh trên)
                 const ang = -Math.PI / 2 + (2 * Math.PI * i / n1);
-                let x = cx + rX * Math.cos(ang);
-                let y = cy + rY * Math.sin(ang);
+                let x = cx + ringR * Math.cos(ang);
+                let y = cy + ringR * Math.sin(ang);
                 x = Math.max(mX, Math.min(W - mX, x));
                 y = Math.max(mTop, Math.min(H - N1_H / 2 - 8, y));
                 posMap[a.agent_id] = { x, y };
@@ -5708,7 +5922,7 @@
                 const task = taskForAgent(tasks, a.agent_id);
                 const busy = isBusy(task);
                 links += `<line class="cst-link ${busy ? 'busy' : ''}" x1="${cx}" y1="${cy}" x2="${x}" y2="${y}"></line>`;
-                nodesHtml += _nodeHtml(a, task, busy, x, y, N1_W, N1_H, 1);
+                nodesHtml += _nodeHtml(a, task, busy, x, y, N1_W, N1_H, 1, scale);
             });
 
             // Render cấp 2 — phân nhánh đều quanh parent
@@ -5723,10 +5937,11 @@
                 const nc = children.length;
                 // Góc gốc = hướng từ tâm → parent, nhánh con tỏa đều 360° quanh parent
                 const baseAng = Math.atan2(pp.y - cy, pp.x - cx);
-                const childR = 125;
                 children.forEach((a, i) => {
-                    // 360° chia đều quanh parent, bắt đầu từ hướng ra xa tâm
-                    const ang = baseAng + (2 * Math.PI * i / nc);
+                    // Xòe QUẠT ra ngoài (không full 360° để con không đè parent/tâm).
+                    const spread = Math.min(Math.PI * 1.3, nc * 0.5);
+                    const off = nc === 1 ? 0 : (-spread / 2 + spread * i / (nc - 1));
+                    const ang = baseAng + off;
                     let x = pp.x + childR * Math.cos(ang);
                     let y = pp.y + childR * Math.sin(ang);
                     x = Math.max(N2_W / 2 + 8, Math.min(W - N2_W / 2 - 8, x));
@@ -5737,7 +5952,7 @@
                     const busy = isBusy(task);
                     // Link nối vào PARENT, không vào Orchestrator
                     links += `<line class="cst-link child-link ${busy ? 'busy' : ''}" x1="${pp.x}" y1="${pp.y}" x2="${x}" y2="${y}"></line>`;
-                    nodesHtml += _nodeHtml(a, task, busy, x, y, N2_W, N2_H, 2);
+                    nodesHtml += _nodeHtml(a, task, busy, x, y, N2_W, N2_H, 2, scale);
                 });
             });
 
@@ -5746,17 +5961,18 @@
         }
 
         // Helper render 1 node card
-        function _nodeHtml(a, task, busy, x, y, nw, nh, level) {
+        function _nodeHtml(a, task, busy, x, y, nw, nh, level, scale) {
+            const cs = scale || 1;
             const stateCls = busy ? 'busy' : (a.stale ? 'stale' : 'live');
-            const sizeCls  = level === 2 ? 'node-sm' : '';
-            const avatar   = (a.agent_id || '?').slice(0, 2).toUpperCase();
+            const sizeCls = level === 2 ? 'node-sm' : '';
+            const avatar = (a.agent_id || '?').slice(0, 2).toUpperCase();
             const compliance = a.compliance || 'probation';
             const compBadge = `<span class="compliance-badge ${compliance}">${compliance === 'compliant' ? '✓ ok' : '⚠ probation'}</span>`;
-            let taskHtml   = `<div class="cst-node-task muted" style="opacity:.6">— rảnh —</div>`;
+            let taskHtml = `<div class="cst-node-task muted" style="opacity:.6">— rảnh —</div>`;
             if (task) {
-                const ck   = task.checklist || [];
+                const ck = task.checklist || [];
                 const done = ck.filter(c => c.done).length;
-                const pct  = ck.length ? Math.round(done * 100 / ck.length) : (task.status === 'done' ? 100 : 0);
+                const pct = ck.length ? Math.round(done * 100 / ck.length) : (task.status === 'done' ? 100 : 0);
                 const checks = ck.slice(0, level === 2 ? 3 : 6).map(c =>
                     `<label class="cst-check ${c.done ? 'done' : ''}">
                     <input type="checkbox" ${c.done ? 'checked' : ''} onchange="toggleCheck('${task.id}','${c.id}',this.checked)">
@@ -5770,7 +5986,7 @@
                         : `<div class="cst-prog-label">${escapeHtml(task.status)}</div>`}
                 </div>`;
             }
-            return `<div class="cst-node ${stateCls} ${sizeCls}" style="left:${x}px;top:${y}px;--nw:${nw}px">
+            return `<div class="cst-node ${stateCls} ${sizeCls}" style="left:${x}px;top:${y}px;--nw:${nw}px;--cscale:${cs}">
                 <div class="cst-node-card">
                     <div class="cst-node-top">
                         <div class="cst-node-avatar">${escapeHtml(avatar)}</div>
@@ -5845,15 +6061,16 @@
                         <span class="cb-time">${t}</span>
                     </div>
                     <div class="cb-text">${renderMarkdownInline(m.content)}</div>
+                    ${(m.images && m.images.length) ? `<div class="cb-images">${m.images.map(u => `<img src="${escapeAttr(u)}" onclick="window.open('${escapeAttr(u)}','_blank')" alt="ảnh">`).join('')}</div>` : ''}
                 </div>
             </div>`;
             }).join('');
             if (wasNearBottom) stream.scrollTop = stream.scrollHeight;
         }
 
-        // Bố luôn chat với danh nghĩa "Bố", gửi thẳng tới Orchestrator
+        // Bố luôn chat với danh nghĩa "Bố", gửi thẳng tới Orchestrator (Kiro IDE)
         const CHAT_SENDER = 'Bố';
-        const ORCHESTRATOR_TARGET = 'pipo-hermes';
+        const ORCHESTRATOR_TARGET = 'kiro-ide';
         function currentChatFrom() { return CHAT_SENDER; }
         // Dropdown đã bỏ — giữ hàm rỗng để các chỗ gọi cũ không lỗi
         function syncChatDropdowns(agents) { /* no-op: composer không còn dropdown */ }
@@ -5861,16 +6078,92 @@
         async function sendChatMessage() {
             const input = document.getElementById('chat-input');
             const content = input.value.trim();
-            if (!content) return;
+            if (!content && coordImages.length === 0) return;
             input.value = '';
+            const imgs = coordImages.slice();
+            coordImages = [];
+            renderCoordThumbs();
             try {
+                let urls = [];
+                if (imgs.length > 0) {
+                    const up = await fetch('/api/coord/upload', {
+                        method: 'POST', headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ files: imgs.map(im => ({ name: im.name, data: im.dataUrl })) })
+                    });
+                    const ud = await up.json();
+                    urls = (ud && ud.urls) || [];
+                }
                 await fetch('/api/coord/message', {
                     method: 'POST', headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ from_agent: CHAT_SENDER, to_agent: ORCHESTRATOR_TARGET, content })
+                    body: JSON.stringify({ from_agent: CHAT_SENDER, to_agent: ORCHESTRATOR_TARGET, content, images: urls })
                 });
                 refreshChatStream();
-            } catch (e) { showToast(`❌ ${e.message}`); input.value = content; }
+            } catch (e) {
+                showToast(`❌ ${e.message}`);
+                input.value = content;
+                coordImages = imgs;
+                renderCoordThumbs();
+            }
         }
+
+        // ── Ảnh đính kèm cho chat realtime (paste / chọn file) ──
+        let coordImages = [];   // [{name, dataUrl, mime}]
+
+        function addCoordImage(f) {
+            if (!f || !f.type || !f.type.startsWith('image/')) return false;
+            if (coordImages.length >= 5) { showToast('⚠️ Tối đa 5 ảnh'); return false; }
+            const reader = new FileReader();
+            reader.onload = e => {
+                const ext = (f.type.split('/')[1] || 'png').replace('jpeg', 'jpg');
+                const name = (f.name && f.name !== 'image.png' && f.name !== 'blob')
+                    ? f.name : `paste_${Date.now()}.${ext}`;
+                coordImages.push({ name, dataUrl: e.target.result, mime: f.type });
+                renderCoordThumbs();
+            };
+            reader.readAsDataURL(f);
+            return true;
+        }
+
+        function handleCoordFileSelect(event) {
+            for (const f of Array.from(event.target.files || [])) {
+                if (!addCoordImage(f)) break;
+            }
+            event.target.value = '';
+        }
+
+        function handleCoordPaste(event) {
+            const items = (event.clipboardData || {}).items || [];
+            let handled = false;
+            for (const it of items) {
+                if (it.kind === 'file') {
+                    const f = it.getAsFile();
+                    if (f && f.type.startsWith('image/')) { addCoordImage(f); handled = true; }
+                }
+            }
+            if (handled) { event.preventDefault(); showToast('📎 Đã đính kèm ảnh từ clipboard'); }
+        }
+
+        function removeCoordImage(idx) {
+            coordImages.splice(idx, 1);
+            renderCoordThumbs();
+        }
+
+        function renderCoordThumbs() {
+            const box = document.getElementById('coord-thumbs');
+            if (!box) return;
+            if (!coordImages.length) { box.style.display = 'none'; box.innerHTML = ''; return; }
+            box.style.display = 'flex';
+            box.innerHTML = coordImages.map((im, i) =>
+                `<div class="coord-thumb"><img src="${im.dataUrl}" alt="${escapeHtml(im.name)}"><span class="coord-thumb-x" onclick="removeCoordImage(${i})">×</span></div>`
+            ).join('');
+        }
+
+        // Wire paste handler lên ô chat realtime
+        (function wireCoordPaste() {
+            const input = document.getElementById('chat-input');
+            if (!input) { setTimeout(wireCoordPaste, 300); return; }
+            input.addEventListener('paste', handleCoordPaste);
+        })();
 
         async function joinAsAgent() {
             const id = document.getElementById('join-id').value.trim();
@@ -5941,16 +6234,34 @@
         }
 
         // ============ PARALLEL ORCHESTRATION PIPELINE ============
-        // Mẫu graph demo sẵn (website: backend/frontend song song → tích hợp → test).
+        // Màu badge theo role — đồng bộ với backend routing:
+        // Coder→Claude · Builder→pipo-hermes · Tester→Codex · Researcher→Hermes.
+        const ROLE_COLOR = {
+            Coder: '#38bdf8', Builder: '#a78bfa', Tester: '#34d399',
+            Researcher: '#fbbf24', Orchestrator: '#f472b6'
+        };
+        const ROLE_AGENT = {
+            Coder: 'Claude', Builder: 'pipo-hermes', Tester: 'Codex', Researcher: 'Hermes'
+        };
+        // Mẫu graph demo: orchestrator phân rã → Coder code song song → Builder (Hermes)
+        // ghép/dựng → Tester kiểm thử. Dependency truyền output xuôi làm ngữ cảnh.
         const PIPELINE_DEMO = {
             nodes: [
                 { id: "api-login", prompt: "Code API đăng nhập trả JWT", role: "Coder", depends_on: [] },
                 { id: "api-payment", prompt: "Code API thanh toán Stripe", role: "Coder", depends_on: [] },
                 { id: "ui-frontend", prompt: "Thiết kế UI login + payment", role: "Coder", depends_on: [] },
-                { id: "integration", prompt: "Ghép API + UI", role: "Coder", depends_on: ["api-login", "api-payment", "ui-frontend"] },
+                { id: "integration", prompt: "Ghép API + UI thành dự án chạy được", role: "Builder", depends_on: ["api-login", "api-payment", "ui-frontend"] },
                 { id: "e2e-test", prompt: "Test end-to-end", role: "Tester", depends_on: ["integration"] }
             ]
         };
+
+        // Map task_id → role từ graph (để render badge; backend report không kèm role).
+        let LAST_ROLE_OF = {};
+        function buildRoleOf(graph) {
+            const m = {};
+            (graph?.nodes || []).forEach(n => { if (n.role) m[n.id] = n.role; });
+            return m;
+        }
 
         function openPipelineModal() {
             const raw = prompt(
@@ -5971,6 +6282,7 @@
 
         async function runPipeline(graph) {
             showToast('⚡ Đang chạy Fan-Out pipeline...');
+            LAST_ROLE_OF = buildRoleOf(graph);
             const panel = document.getElementById('pipeline-result-panel');
             const stages = document.getElementById('pipeline-stages');
             const summary = document.getElementById('pipeline-summary');
@@ -5984,14 +6296,15 @@
                 });
                 const data = await r.json();
                 if (!data.ok) { stages.innerHTML = `<div style="padding:1rem;color:#ef4444">❌ ${data.reason || 'lỗi'}</div>`; return; }
-                renderPipeline(data.report);
+                renderPipeline(data.report, LAST_ROLE_OF);
                 showToast('✅ Pipeline xong!');
             } catch (e) {
                 stages.innerHTML = `<div style="padding:1rem;color:#ef4444">❌ ${e.message}</div>`;
             }
         }
 
-        function renderPipeline(report) {
+        function renderPipeline(report, roleOf) {
+            roleOf = roleOf || {};
             const stages = document.getElementById('pipeline-stages');
             const summary = document.getElementById('pipeline-summary');
             // Gom results theo layer.
@@ -6000,7 +6313,7 @@
                 (byLayer[t.layer] = byLayer[t.layer] || []).push(t);
             });
             const layerNums = Object.keys(byLayer).map(Number).sort((a, b) => a - b);
-            let html = '<div class="pl-phase-tag">GĐ1 FAN-OUT: mỗi tầng chạy SONG SONG, tầng sau chờ tầng trước (barrier)</div>';
+            let html = '<div class="pl-phase-tag">GĐ1 FAN-OUT: mỗi tầng chạy SONG SONG, tầng sau chờ tầng trước (barrier) + nhận output tầng trước làm ngữ cảnh 📥</div>';
             layerNums.forEach((ln, idx) => {
                 const tasks = byLayer[ln];
                 html += '<div class="pl-stage">';
@@ -6008,11 +6321,16 @@
                 html += '<div class="pl-stage-tasks">';
                 tasks.forEach((t, ti) => {
                     const cls = t.ok ? 'ok' : 'fail';
+                    const role = roleOf[t.task_id];
+                    const rc = ROLE_COLOR[role] || 'var(--text-muted)';
+                    const badge = role
+                        ? `<span class="pl-role" title="${ROLE_AGENT[role] || role}" style="background:${rc}22;color:${rc};border:1px solid ${rc}55;">${role}</span>`
+                        : '';
                     html += `<div class="pl-task ${cls}" style="animation-delay:${(idx * 0.15 + ti * 0.08).toFixed(2)}s">`;
-                    html += `<span class="pl-dot"></span>${t.task_id} <span style="color:var(--text-dim);font-size:.7rem">${t.elapsed_ms}ms</span></div>`;
+                    html += `<span class="pl-dot"></span>${t.task_id}${badge} <span style="color:var(--text-dim);font-size:.7rem">${t.elapsed_ms}ms</span></div>`;
                 });
                 html += '</div></div>';
-                if (idx < layerNums.length - 1) html += '<div class="pl-arrow">⬇ barrier (chờ tất cả xong)</div>';
+                if (idx < layerNums.length - 1) html += '<div class="pl-arrow">⬇ barrier — output tầng trên chảy xuống làm ngữ cảnh</div>';
             });
             stages.innerHTML = html;
 

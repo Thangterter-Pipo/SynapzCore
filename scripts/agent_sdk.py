@@ -57,12 +57,14 @@ class AgentSession:
         server: str = "http://127.0.0.1:8899",
         heartbeat_interval: float = 45.0,
         auto_start: bool = True,
+        parent_id: str = None,
     ):
         self.agent_id = agent_id
         self.role = role
         self.capabilities = capabilities or []
         self.server = server.rstrip("/")
         self.heartbeat_interval = heartbeat_interval
+        self.parent_id = parent_id  # None = agent cấp 1; có giá trị = sub-agent (nhánh con)
 
         self._current_task: str | None = None
         self._status = "active"
@@ -79,9 +81,20 @@ class AgentSession:
     def start(self):
         """Register and start heartbeat daemon."""
         self._register()
+        self._ack_rules()  # clear probation ngay → được phép nhắn/reply (tránh 403)
         self._hb_thread = threading.Thread(target=self._heartbeat_loop, daemon=True)
         self._hb_thread.start()
         print(f"🤝 [{self.agent_id}] registered, heartbeat every {self.heartbeat_interval}s")
+
+    def _ack_rules(self):
+        """Xác nhận đã đọc rules → chuyển probation→compliant (mở quyền message/claim).
+        /api/coord/rules đăng ký ở POST nên dùng _post; fallback rules_version mặc định."""
+        try:
+            rules = self._post("/api/coord/rules", {}) or {}
+            rv = rules.get("rules_version") or "v1.0.0"
+            self._post("/api/coord/ack-rules", {"agent_id": self.agent_id, "rules_version": rv})
+        except Exception:
+            pass
 
     def stop(self):
         """Release all locks, deregister, stop heartbeat."""
@@ -293,6 +306,7 @@ class AgentSession:
             "status": self._status,
             "capabilities": self.capabilities,
             "current_task": self._current_task,
+            "parent_id": self.parent_id,
         })
 
     def _send_heartbeat(self):
@@ -302,6 +316,7 @@ class AgentSession:
             "status": self._status,
             "capabilities": self.capabilities,
             "current_task": self._current_task,
+            "parent_id": self.parent_id,
         })
 
     def _heartbeat_loop(self):
@@ -339,8 +354,200 @@ class AgentSession:
         return datetime.now(timezone.utc).isoformat(timespec="seconds")
 
 
+def _msg_epoch_ms(m: dict) -> float | None:
+    """Trả epoch (ms) của 1 message để so với mốc khởi động watch.
+    Ưu tiên id dạng 'msg-<ms>'; fallback parse created_at ISO; None nếu không suy ra được."""
+    mid = m.get("id") or ""
+    if isinstance(mid, str) and mid.startswith("msg-"):
+        tail = mid[4:]
+        if tail.isdigit():
+            try:
+                return float(tail)
+            except Exception:
+                pass
+    ca = m.get("created_at")
+    if isinstance(ca, str) and ca:
+        try:
+            dt = datetime.fromisoformat(ca.replace("Z", "+00:00"))
+            if dt.tzinfo is None:
+                dt = dt.replace(tzinfo=timezone.utc)
+            return dt.timestamp() * 1000.0
+        except Exception:
+            pass
+    return None
+
+
 # ─── CLI — called by MCP Rust subprocess ─────────────────────────────────────
 #
+
+def _load_env_file():
+    """Nạp .env ở repo root vào os.environ (không ghi đè biến đã có)."""
+    import os
+    base = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    p = os.path.join(base, ".env")
+    if os.path.isfile(p):
+        with open(p, encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if "=" in line and not line.startswith("#"):
+                    k, v = line.split("=", 1)
+                    os.environ.setdefault(k.strip(), v.strip())
+
+
+def llm_reply(agent_id, role, content):
+    """Gọi 9router sinh câu trả lời NGẮN cho 1 tin nhắn. Trả str, hoặc None nếu không cấu hình/lỗi."""
+    import os, json as _j, urllib.request
+    url = os.environ.get("NINEROUTER_URL")
+    key = os.environ.get("NINEROUTER_KEY")
+    model = os.environ.get("NINEROUTER_MODEL", "claude-opus-4.8")
+    if not url or not key:
+        return None
+    sys_prompt = (f"Bạn là agent '{agent_id}' (vai trò {role}) trong hệ điều phối đa tác nhân SynapzCore. "
+                  f"Trả lời NGẮN GỌN, tiếng Việt, đúng trọng tâm. Nếu được giao việc thì xác nhận sẽ làm.")
+    body = _j.dumps({"model": model, "stream": False, "messages": [
+        {"role": "system", "content": sys_prompt},
+        {"role": "user", "content": content}], "max_tokens": 400}).encode()
+    req = urllib.request.Request(url.rstrip("/") + "/v1/chat/completions", data=body,
+                                 headers={"Content-Type": "application/json", "Authorization": "Bearer " + key})
+    try:
+        raw = urllib.request.urlopen(req, timeout=60).read().decode("utf-8", "replace")
+        # 9router có thể trả SSE streaming (data: {chunk delta}) HOẶC 1 JSON object.
+        if "chat.completion.chunk" in raw or raw.lstrip().startswith("data:"):
+            parts = []
+            for line in raw.splitlines():
+                line = line.strip()
+                if line.startswith("data:"):
+                    pl = line[5:].strip()
+                    if pl and pl != "[DONE]":
+                        try:
+                            d = _j.loads(pl)
+                            delta = (d.get("choices") or [{}])[0].get("delta", {}).get("content")
+                            if delta:
+                                parts.append(delta)
+                        except Exception:
+                            pass
+            return ("".join(parts).strip() or None)
+        idx = raw.find("data:")  # non-stream: cắt đuôi 'data: [DONE]' nếu có
+        obj = raw[:idx].strip() if idx > 0 else raw
+        v = _j.loads(obj)
+        return (v["choices"][0]["message"]["content"] or "").strip() or None
+    except Exception:
+        return None
+
+
+# ─── REAL CLI EXECUTORS ──────────────────────────────────────────────────────
+# Một số builder là CLI agentic THẬT trên máy (claude-code, codex, gemini) → tự
+# ghi file + chạy lệnh trong repo, không chỉ sinh text như 9router. Bật bằng env
+# SYNAPZ_CLI_EXEC=1 (mặc định TẮT cho an toàn — autonomous edit là rủi ro cao).
+# Prompt truyền qua STDIN để tránh lỗi quoting; chạy qua PowerShell để resolve
+# .cmd/.ps1 shim của npm đồng nhất.
+def _cli_spec(agent_id: str):
+    """Trả (mode, cmd) cho agent: mode='stdin' (prompt qua $input) hoặc 'arg' (prompt qua
+    $env:SYNAPZ_TASK_PROMPT). None nếu không map. $MODEL thay bằng env tương ứng."""
+    model = os.environ.get("CLAUDE_CLI_MODEL", "claude-opus-4.8")
+    oc_model = os.environ.get("OPENCODE_CLI_MODEL", "9router/claude-opus-4.6")
+    mimo_model = os.environ.get("MIMO_CLI_MODEL", "9router/claude-opus-4.8")
+    cline_model = os.environ.get("CLINE_CLI_MODEL", "claude-opus-4.8")
+    table = {
+        "claude-code": ("stdin", f"claude -p --model {model} --permission-mode acceptEdits"),
+        "claude":      ("stdin", f"claude -p --model {model} --permission-mode acceptEdits"),
+        "codex":       ("stdin", "codex exec -"),
+        "gemini":      ("stdin", "gemini -p --yolo"),
+        "opencode":    ("stdin", f"opencode run -m {oc_model}"),
+        "mimo":        ("stdin", f"mimo run -m {mimo_model}"),
+        "cline":       ("arg",   f"cline -a -y --json -m {cline_model}"),
+    }
+    return table.get(agent_id)
+
+
+def cli_execute_task(agent_id, role, task_desc, repo_root=None, timeout=600):
+    """THỰC THI task bằng CLI agentic THẬT (claude/codex/gemini/opencode/mimo/cline) trong repo.
+    Trả str (output + danh sách file đổi) hoặc None nếu không map / lỗi / chưa bật."""
+    import os as _os, subprocess as _sp
+    if _os.environ.get("SYNAPZ_CLI_EXEC", "").strip() not in ("1", "true", "yes", "on"):
+        return None  # tính năng chưa bật → fallback sang llm_execute_task
+    spec = _cli_spec(agent_id)
+    if not spec:
+        return None
+    mode, cmd = spec
+    root = repo_root or _os.path.dirname(_os.path.dirname(_os.path.abspath(__file__)))
+    # gemini cần GEMINI_API_KEY
+    if agent_id == "gemini" and not _os.environ.get("GEMINI_API_KEY"):
+        return None
+    env = dict(_os.environ)
+    if mode == "arg":
+        env["SYNAPZ_TASK_PROMPT"] = task_desc
+        ps_cmd = f"& {cmd} $env:SYNAPZ_TASK_PROMPT"
+        stdin_data = None
+    else:  # stdin
+        ps_cmd = f"$input | & {cmd}"
+        stdin_data = task_desc
+    try:
+        proc = _sp.run(
+            ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", ps_cmd],
+            input=stdin_data, cwd=root, capture_output=True, text=True,
+            timeout=timeout, encoding="utf-8", errors="replace", env=env,
+        )
+    except Exception as e:
+        return f"⚠️ CLI '{agent_id}' lỗi chạy: {e}"
+    out = (proc.stdout or "").strip()
+    err = (proc.stderr or "").strip()
+    # Liệt kê file đã đổi để chứng minh LÀM THẬT (không chỉ nói).
+    changed = ""
+    try:
+        gp = _sp.run(["git", "status", "--porcelain"], cwd=root,
+                     capture_output=True, text=True, timeout=20)
+        lines = [l for l in (gp.stdout or "").splitlines() if l.strip()]
+        if lines:
+            changed = "\n\n📝 File thay đổi:\n" + "\n".join(lines[:40])
+    except Exception:
+        pass
+    body = out or err or "(CLI không in output)"
+    tail = body[-3500:]
+    return f"[{agent_id} CLI · exit {proc.returncode}]\n{tail}{changed}"
+
+
+def llm_execute_task(agent_id, role, task_desc):
+    """Builder THỰC THI task: gọi 9router sinh DELIVERABLE hoàn chỉnh (code/kết quả), không phải ack.
+    Trả str (kết quả) hoặc None."""
+    import os, json as _j, urllib.request
+    url = os.environ.get("NINEROUTER_URL")
+    key = os.environ.get("NINEROUTER_KEY")
+    model = os.environ.get("NINEROUTER_MODEL", "claude-opus-4.8")
+    if not url or not key:
+        return None
+    sys_prompt = (f"Bạn là builder '{agent_id}' (vai trò {role}) trong SynapzCore. THỰC HIỆN task được giao "
+                  f"và TRẢ VỀ KẾT QUẢ HOÀN CHỈNH (code đầy đủ trong khối ```, hoặc nội dung cụ thể). "
+                  f"Ngắn gọn phần giải thích, tập trung vào sản phẩm. Tiếng Việt cho phần mô tả.")
+    body = _j.dumps({"model": model, "stream": False, "messages": [
+        {"role": "system", "content": sys_prompt},
+        {"role": "user", "content": "Task: " + task_desc}], "max_tokens": 1500}).encode()
+    req = urllib.request.Request(url.rstrip("/") + "/v1/chat/completions", data=body,
+                                 headers={"Content-Type": "application/json", "Authorization": "Bearer " + key})
+    try:
+        raw = urllib.request.urlopen(req, timeout=120).read().decode("utf-8", "replace")
+        if "chat.completion.chunk" in raw or raw.lstrip().startswith("data:"):
+            parts = []
+            for line in raw.splitlines():
+                line = line.strip()
+                if line.startswith("data:"):
+                    pl = line[5:].strip()
+                    if pl and pl != "[DONE]":
+                        try:
+                            d = _j.loads(pl)
+                            delta = (d.get("choices") or [{}])[0].get("delta", {}).get("content")
+                            if delta:
+                                parts.append(delta)
+                        except Exception:
+                            pass
+            return "".join(parts).strip() or None
+        idx = raw.find("data:")
+        obj = raw[:idx].strip() if idx > 0 else raw
+        return (_j.loads(obj)["choices"][0]["message"]["content"] or "").strip() or None
+    except Exception:
+        return None
+
+
 # Usage (all output JSON to stdout):
 #   python agent_sdk.py --action heartbeat --agent antigravity-ide --role builder [--task "..."] [--status active]
 #   python agent_sdk.py --action claim     --agent antigravity-ide --file scripts/dashboard.html
@@ -368,6 +575,7 @@ if __name__ == "__main__":
     p.add_argument("--server", default="http://127.0.0.1:8899")
     p.add_argument("--once", action="store_true", help="watch: print current unread + open tasks then exit")
     p.add_argument("--interval", type=int, default=10, help="watch: poll seconds")
+    p.add_argument("--parent", default=None, help="parent agent_id → đăng ký làm sub-agent (nhánh con)")
     args = p.parse_args()
 
     caps = [c.strip() for c in args.capabilities.split(",") if c.strip()]
@@ -466,12 +674,12 @@ if __name__ == "__main__":
 
     elif args.action == "watch":
         # Webhook-style listener: an AI registers, then watches the feed.
-        # On new directed message / broadcast / open task → emits a JSON event
-        # to stdout (one line each) so a host loop can react & "xin việc".
-        # --once: emit current unread + open tasks then exit (for poll-based hosts).
+        # Tin nhắn gửi ĐÚNG agent này (không phải 'reply') → tự gọi 9router trả lời (2 chiều).
+        _load_env_file()
         session = AgentSession(args.agent, role=args.role, capabilities=caps,
                                server=args.server,
-                               heartbeat_interval=max(30, args.interval * 3))
+                               heartbeat_interval=max(30, args.interval * 3),
+                               parent_id=args.parent)
         try:
             session.broadcast(f"👀 {args.agent} ({args.role}) online & watching. Sẵn sàng nhận việc.")
         except Exception:
@@ -479,6 +687,11 @@ if __name__ == "__main__":
 
         seen_msgs = set()
         seen_tasks = set()
+        # Mốc khởi động: chỉ THỰC THI/TRẢ LỜI tin tạo SAU thời điểm này.
+        # Tin cũ (stale) vẫn được mark-read để drain, nhưng KHÔNG chạy lại.
+        # --once không gate (giữ hành vi kiểm tra tức thời).
+        watch_start_ms = time.time() * 1000.0
+        gate_stale = not args.once
 
         def poll_once():
             events = []
@@ -487,12 +700,42 @@ if __name__ == "__main__":
                 mid = m.get("id")
                 if mid and mid not in seen_msgs and m.get("from") != args.agent:
                     seen_msgs.add(mid)
+                    # Tin tạo trước khi watch khởi động → stale: drain (mark-read), không xử lý.
+                    ep = _msg_epoch_ms(m)
+                    is_stale = gate_stale and ep is not None and ep < watch_start_ms
                     events.append({"kind": "message", "id": mid,
                                    "from": m.get("from"), "to": m.get("to"),
-                                   "content": m.get("content")})
+                                   "content": m.get("content"),
+                                   "stale": is_stale})
                     if mid:
                         try: session.mark_read([mid])
                         except Exception: pass
+                    if is_stale:
+                        events.append({"kind": "skip_stale", "id": mid,
+                                       "from": m.get("from"), "type": m.get("type")})
+                        continue
+                    # AUTO-REPLY / THỰC THI: tin gửi ĐÚNG mình & KHÔNG phải 'reply'.
+                    if m.get("to") == args.agent and m.get("type") != "reply" and m.get("from"):
+                        if m.get("type") == "task":
+                            # THỰC THI task → ưu tiên CLI agentic THẬT (tự sửa file),
+                            # fallback 9router text nếu chưa bật/không map.
+                            result = cli_execute_task(args.agent, args.role, m.get("content") or "")
+                            if not result:
+                                result = llm_execute_task(args.agent, args.role, m.get("content") or "")
+                            if result:
+                                try:
+                                    session.tell(m["from"], "✅ Kết quả:\n" + result, msg_type="reply")
+                                    events.append({"kind": "task_done", "to": m["from"], "result": result[:80]})
+                                except Exception:
+                                    pass
+                        else:
+                            reply = llm_reply(args.agent, args.role, m.get("content") or "")
+                            if reply:
+                                try:
+                                    session.tell(m["from"], reply, msg_type="reply")
+                                    events.append({"kind": "auto_reply", "to": m["from"], "reply": reply[:80]})
+                                except Exception:
+                                    pass
             # 2) Open tasks I could claim (pending, unassigned or assigned to me)
             state = session._get("/api/coord/state") or {}
             for t in state.get("task_queue", []):

@@ -1,0 +1,28 @@
+{
+  "nodes": [
+    {
+      "id": "research-auth",
+      "prompt": "Research: choose a session strategy (JWT vs server session) for the login API.",
+      "role": "Researcher",
+      "depends_on": []
+    },
+    {
+      "id": "api-login",
+      "prompt": "Implement POST /login: validate credentials, issue a token.",
+      "role": "Coder",
+      "depends_on": ["research-auth"]
+    },
+    {
+      "id": "ui-login",
+      "prompt": "Build the login form and wire it to POST /login.",
+      "role": "Coder",
+      "depends_on": ["research-auth"]
+    },
+    {
+      "id": "test-login",
+      "prompt": "Write happy-path + error-case tests for the login flow.",
+      "role": "Tester",
+      "depends_on": ["api-login", "ui-login"]
+    }
+  ]
+}

@@ -1,7 +1,6 @@
-//! Supabase REST client for shared memory storage.
-//! Supports all agents: Antigravity, ChatGPT.
+//! Supabase REST client for memory storage.
 
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use std::fs;
@@ -51,10 +50,15 @@ impl SupabaseMemory {
     /// 2. JSON config file at `config_path` (backward compatible)
     pub fn from_config(config_path: &str) -> Result<Self> {
         // 1. Env-first: if both env vars are set, use them and skip the file entirely.
-        if let (Ok(url), Ok(key)) = (std::env::var("SUPABASE_URL"), std::env::var("SUPABASE_KEY")) {
-            if !url.is_empty() && !key.is_empty() {
-                return Ok(Self { client: Client::new(), url, key });
-            }
+        if let (Ok(url), Ok(key)) = (std::env::var("SUPABASE_URL"), std::env::var("SUPABASE_KEY"))
+            && !url.is_empty()
+            && !key.is_empty()
+        {
+            return Ok(Self {
+                client: Client::new(),
+                url,
+                key,
+            });
         }
 
         // 2. Fallback: read from JSON file, allowing env vars to override individual fields.
@@ -64,27 +68,39 @@ impl SupabaseMemory {
 
         Ok(Self {
             client: Client::new(),
-            url: std::env::var("SUPABASE_URL").ok().filter(|s| !s.is_empty()).unwrap_or(config.supabase_url),
-            key: std::env::var("SUPABASE_KEY").ok().filter(|s| !s.is_empty()).unwrap_or(config.supabase_key),
+            url: std::env::var("SUPABASE_URL")
+                .ok()
+                .filter(|s| !s.is_empty())
+                .unwrap_or(config.supabase_url),
+            key: std::env::var("SUPABASE_KEY")
+                .ok()
+                .filter(|s| !s.is_empty())
+                .unwrap_or(config.supabase_key),
         })
     }
 
     /// Helper: build auth headers.
     fn auth_headers(&self, req: reqwest::RequestBuilder) -> reqwest::RequestBuilder {
         req.header("apikey", &self.key)
-           .header("Authorization", format!("Bearer {}", self.key))
-           .header("Content-Type", "application/json")
+            .header("Authorization", format!("Bearer {}", self.key))
+            .header("Content-Type", "application/json")
     }
 
     /// Insert a memory (legacy — defaults to antigravity agent).
-    pub async fn remember(&self, content: &str, role: &str, metadata: &serde_json::Value) -> Result<()> {
+    pub async fn remember(
+        &self,
+        content: &str,
+        role: &str,
+        metadata: &serde_json::Value,
+    ) -> Result<()> {
         let payload = InsertPayload {
             content: content.to_string(),
             role: role.to_string(),
             metadata: metadata.clone(),
         };
 
-        let req = self.client
+        let req = self
+            .client
             .post(format!("{}/rest/v1/memories", self.url))
             .header("Prefer", "return=minimal")
             .json(&payload);
@@ -98,6 +114,9 @@ impl SupabaseMemory {
     }
 
     /// Insert a memory with full agent metadata — for shared team memory.
+    // 8 fields map 1:1 to the memories table schema; grouping them into a struct
+    // would only add indirection for callers.
+    #[allow(clippy::too_many_arguments)]
     pub async fn remember_as(
         &self,
         content: &str,
@@ -119,7 +138,8 @@ impl SupabaseMemory {
             metadata: metadata.clone(),
         };
 
-        let req = self.client
+        let req = self
+            .client
             .post(format!("{}/rest/v1/memories", self.url))
             .header("Prefer", "return=minimal")
             .json(&payload);
@@ -135,7 +155,8 @@ impl SupabaseMemory {
 
     /// Fetch N most recent memories (all agents).
     pub async fn fetch_recent(&self, limit: usize) -> Result<Vec<Memory>> {
-        let req = self.client
+        let req = self
+            .client
             .get(format!("{}/rest/v1/memories", self.url))
             .query(&[
                 ("select", "*"),
@@ -155,7 +176,8 @@ impl SupabaseMemory {
 
     /// Search memories by keyword (ilike) — all agents.
     pub async fn recall(&self, query: &str, limit: usize) -> Result<Vec<Memory>> {
-        let req = self.client
+        let req = self
+            .client
             .get(format!("{}/rest/v1/memories", self.url))
             .query(&[
                 ("select", "*"),
@@ -175,7 +197,8 @@ impl SupabaseMemory {
 
     /// Fetch recent memories for a specific agent.
     pub async fn recall_by_agent(&self, agent: &str, limit: usize) -> Result<Vec<Memory>> {
-        let req = self.client
+        let req = self
+            .client
             .get(format!("{}/rest/v1/memories", self.url))
             .query(&[
                 ("select", "*"),
@@ -197,7 +220,8 @@ impl SupabaseMemory {
     /// Fetch high-importance team memories across all agents.
     /// Used for injecting shared context into subagent system prompts.
     pub async fn recall_team(&self, limit: usize) -> Result<Vec<Memory>> {
-        let req = self.client
+        let req = self
+            .client
             .get(format!("{}/rest/v1/memories", self.url))
             .query(&[
                 ("select", "*"),
@@ -224,7 +248,8 @@ impl SupabaseMemory {
         let cutoff = chrono::Utc::now() - chrono::Duration::days(days_old as i64);
         let cutoff_str = cutoff.to_rfc3339();
 
-        let req = self.client
+        let req = self
+            .client
             .get(format!("{}/rest/v1/memories", self.url))
             .query(&[
                 ("select", "*"),
@@ -241,7 +266,9 @@ impl SupabaseMemory {
 
         let memories: Vec<Memory> = resp.json().await?;
         if memories.is_empty() {
-            eprintln!("📦 No memories to archive (cutoff: {days_old} days, max_importance: {max_importance})");
+            eprintln!(
+                "📦 No memories to archive (cutoff: {days_old} days, max_importance: {max_importance})"
+            );
             return Ok(0);
         }
 
@@ -249,7 +276,8 @@ impl SupabaseMemory {
         eprintln!("📦 Archiving {count} memories...");
 
         // Step 2: Insert into memories_archive
-        let req = self.client
+        let req = self
+            .client
             .post(format!("{}/rest/v1/memories_archive", self.url))
             .header("Prefer", "return=minimal")
             .json(&memories);
@@ -261,13 +289,15 @@ impl SupabaseMemory {
         }
 
         // Step 3: Delete from memories
-        let ids: Vec<String> = memories.iter()
+        let ids: Vec<String> = memories
+            .iter()
             .filter_map(|m| m.id.as_ref().map(|id| id.to_string()))
             .collect();
 
         if !ids.is_empty() {
             let id_filter = format!("in.({})", ids.join(","));
-            let req = self.client
+            let req = self
+                .client
                 .delete(format!("{}/rest/v1/memories", self.url))
                 .query(&[("id", &id_filter)]);
             let resp = self.auth_headers(req).send().await?;
@@ -289,9 +319,10 @@ impl SupabaseMemory {
         }
 
         let count = memories.len();
-        
+
         // Step 1: Insert into memories_archive
-        let req = self.client
+        let req = self
+            .client
             .post(format!("{}/rest/v1/memories_archive", self.url))
             .header("Prefer", "return=minimal")
             .json(memories);
@@ -303,13 +334,15 @@ impl SupabaseMemory {
         }
 
         // Step 2: Delete from memories
-        let ids: Vec<String> = memories.iter()
+        let ids: Vec<String> = memories
+            .iter()
             .filter_map(|m| m.id.as_ref().map(|id| id.to_string()))
             .collect();
 
         if !ids.is_empty() {
             let id_filter = format!("in.({})", ids.join(","));
-            let req = self.client
+            let req = self
+                .client
                 .delete(format!("{}/rest/v1/memories", self.url))
                 .query(&[("id", &id_filter)]);
             let resp = self.auth_headers(req).send().await?;
@@ -327,49 +360,56 @@ impl SupabaseMemory {
     /// Get memory statistics.
     pub async fn stats(&self) -> Result<serde_json::Value> {
         // Count total memories
-        let req = self.client
+        let req = self
+            .client
             .get(format!("{}/rest/v1/memories", self.url))
             .query(&[("select", "id"), ("limit", "1000")])
             .header("Prefer", "count=exact");
         let resp = self.auth_headers(req).send().await?;
 
-        let total_count = resp.headers()
+        let total_count = resp
+            .headers()
             .get("content-range")
             .and_then(|v| v.to_str().ok())
-            .and_then(|s| s.split('/').last())
+            .and_then(|s| s.split('/').next_back())
             .and_then(|n| n.parse::<usize>().ok())
             .unwrap_or(0);
 
-        // Count per agent
+        // Count per agent — derive agent list dynamically (chatgpt đã bỏ; không hardcode).
         let mut agent_counts = serde_json::Map::new();
-        for agent in &["antigravity", "chatgpt"] {
-            let req = self.client
-                .get(format!("{}/rest/v1/memories", self.url))
-                .query(&[("select", "id"), ("agent", &format!("eq.{agent}")), ("limit", "1")])
-                .header("Prefer", "count=exact");
-            let resp = self.auth_headers(req).send().await?;
-
-            let count = resp.headers()
-                .get("content-range")
-                .and_then(|v| v.to_str().ok())
-                .and_then(|s| s.split('/').last())
-                .and_then(|n| n.parse::<u64>().ok())
-                .unwrap_or(0);
-
-            agent_counts.insert(agent.to_string(), serde_json::json!(count));
+        let req = self
+            .client
+            .get(format!("{}/rest/v1/memories", self.url))
+            .query(&[("select", "agent"), ("limit", "10000")]);
+        let resp = self.auth_headers(req).send().await?;
+        if resp.status().is_success()
+            && let Ok(rows) = resp.json::<Vec<serde_json::Value>>().await
+        {
+            for row in &rows {
+                if let Some(a) = row.get("agent").and_then(|v| v.as_str()) {
+                    let entry = agent_counts
+                        .entry(a.to_string())
+                        .or_insert_with(|| serde_json::json!(0));
+                    if let Some(n) = entry.as_u64() {
+                        *entry = serde_json::json!(n + 1);
+                    }
+                }
+            }
         }
 
         // Count archived
-        let req = self.client
+        let req = self
+            .client
             .get(format!("{}/rest/v1/memories_archive", self.url))
             .query(&[("select", "id"), ("limit", "1")])
             .header("Prefer", "count=exact");
         let resp = self.auth_headers(req).send().await?;
 
-        let archived = resp.headers()
+        let archived = resp
+            .headers()
             .get("content-range")
             .and_then(|v| v.to_str().ok())
-            .and_then(|s| s.split('/').last())
+            .and_then(|s| s.split('/').next_back())
             .and_then(|n| n.parse::<u64>().ok())
             .unwrap_or(0);
 
@@ -394,7 +434,8 @@ impl SupabaseMemory {
             "dimensions": 384,
         });
 
-        let mut req = self.client
+        let mut req = self
+            .client
             .post(format!("{api_url}/v1/embeddings"))
             .header("Content-Type", "application/json")
             .json(&payload);
@@ -439,7 +480,14 @@ impl SupabaseMemory {
     ) -> Result<Vec<Memory>> {
         // Generate embedding for query
         let embedding = self.generate_embedding(query).await?;
-        let embedding_str = format!("[{}]", embedding.iter().map(|f| f.to_string()).collect::<Vec<_>>().join(","));
+        let embedding_str = format!(
+            "[{}]",
+            embedding
+                .iter()
+                .map(|f| f.to_string())
+                .collect::<Vec<_>>()
+                .join(",")
+        );
 
         // Call match_memories RPC
         let payload = serde_json::json!({
@@ -448,7 +496,8 @@ impl SupabaseMemory {
             "match_count": limit,
         });
 
-        let req = self.client
+        let req = self
+            .client
             .post(format!("{}/rest/v1/rpc/match_memories", self.url))
             .json(&payload);
         let resp = self.auth_headers(req).send().await?;
@@ -464,13 +513,21 @@ impl SupabaseMemory {
 
     /// Update embedding for a specific memory by id.
     pub async fn update_embedding(&self, memory_id: i64, embedding: &[f32]) -> Result<()> {
-        let embedding_str = format!("[{}]", embedding.iter().map(|f| f.to_string()).collect::<Vec<_>>().join(","));
+        let embedding_str = format!(
+            "[{}]",
+            embedding
+                .iter()
+                .map(|f| f.to_string())
+                .collect::<Vec<_>>()
+                .join(",")
+        );
 
         let payload = serde_json::json!({
             "embedding": embedding_str,
         });
 
-        let req = self.client
+        let req = self
+            .client
             .patch(format!("{}/rest/v1/memories?id=eq.{memory_id}", self.url))
             .header("Prefer", "return=minimal")
             .json(&payload);
@@ -486,7 +543,8 @@ impl SupabaseMemory {
 
     /// Fetch goals from memories.
     pub async fn fetch_active_goals(&self, limit: usize) -> Result<Vec<Memory>> {
-        let req = self.client
+        let req = self
+            .client
             .get(format!("{}/rest/v1/memories", self.url))
             .query(&[
                 ("select", "*"),
@@ -509,7 +567,8 @@ impl SupabaseMemory {
     /// Processes in batches to avoid rate limiting.
     pub async fn backfill_embeddings(&self, batch_size: usize) -> Result<usize> {
         // Fetch memories without embeddings
-        let req = self.client
+        let req = self
+            .client
             .get(format!("{}/rest/v1/memories", self.url))
             .query(&[
                 ("select", "id,content"),
@@ -534,7 +593,9 @@ impl SupabaseMemory {
             let id = row.get("id").and_then(|v| v.as_i64()).unwrap_or(0);
             let content = row.get("content").and_then(|v| v.as_str()).unwrap_or("");
 
-            if content.is_empty() || id == 0 { continue; }
+            if content.is_empty() || id == 0 {
+                continue;
+            }
 
             match self.generate_embedding(content).await {
                 Ok(emb) => {

@@ -7,6 +7,7 @@ use serde::{Deserialize, Serialize};
 pub enum AgentRole {
     Orchestrator, // AI Tối cao — phát lệnh
     Coder,
+    Builder, // pipo-hermes — tay dựng dự án (build/scaffold/triển khai)
     Tester,
     Researcher,
     Unassigned, // Mới đăng ký, chờ xếp việc
@@ -17,6 +18,7 @@ impl std::fmt::Display for AgentRole {
         let s = match self {
             AgentRole::Orchestrator => "Orchestrator",
             AgentRole::Coder => "Coder",
+            AgentRole::Builder => "Builder",
             AgentRole::Tester => "Tester",
             AgentRole::Researcher => "Researcher",
             AgentRole::Unassigned => "Unassigned",

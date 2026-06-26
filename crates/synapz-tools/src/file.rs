@@ -1,43 +1,64 @@
 //! File system tools — read, write, append, list, search, exists.
 
-use anyhow::{anyhow, Result};
-use serde_json::{json, Value};
+use anyhow::{Result, anyhow};
+use serde_json::{Value, json};
 use std::fs;
 use std::path::Path;
 
 pub async fn read_file(params: Value) -> Result<Value> {
-    let path = params.get("path").and_then(|v| v.as_str())
+    let path = params
+        .get("path")
+        .and_then(|v| v.as_str())
         .ok_or_else(|| anyhow!("Missing 'path' parameter"))?;
     let content = fs::read_to_string(path)?;
     Ok(json!(content))
 }
 
 pub async fn write_file(params: Value) -> Result<Value> {
-    let path = params.get("path").and_then(|v| v.as_str())
+    let path = params
+        .get("path")
+        .and_then(|v| v.as_str())
         .ok_or_else(|| anyhow!("Missing 'path'"))?;
-    let content = params.get("content").and_then(|v| v.as_str())
+    let content = params
+        .get("content")
+        .and_then(|v| v.as_str())
         .ok_or_else(|| anyhow!("Missing 'content'"))?;
 
     if let Some(parent) = Path::new(path).parent() {
         fs::create_dir_all(parent)?;
     }
     fs::write(path, content)?;
-    Ok(json!(format!("✅ Wrote {} bytes to {}", content.len(), path)))
+    Ok(json!(format!(
+        "✅ Wrote {} bytes to {}",
+        content.len(),
+        path
+    )))
 }
 
 pub async fn append_file(params: Value) -> Result<Value> {
-    let path = params.get("path").and_then(|v| v.as_str())
+    let path = params
+        .get("path")
+        .and_then(|v| v.as_str())
         .ok_or_else(|| anyhow!("Missing 'path'"))?;
-    let content = params.get("content").and_then(|v| v.as_str())
+    let content = params
+        .get("content")
+        .and_then(|v| v.as_str())
         .ok_or_else(|| anyhow!("Missing 'content'"))?;
 
     if let Some(parent) = Path::new(path).parent() {
         fs::create_dir_all(parent)?;
     }
     use std::io::Write;
-    let mut file = fs::OpenOptions::new().create(true).append(true).open(path)?;
+    let mut file = fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(path)?;
     file.write_all(content.as_bytes())?;
-    Ok(json!(format!("✅ Appended {} bytes to {}", content.len(), path)))
+    Ok(json!(format!(
+        "✅ Appended {} bytes to {}",
+        content.len(),
+        path
+    )))
 }
 
 pub async fn list_dir(params: Value) -> Result<Value> {
@@ -57,7 +78,9 @@ pub async fn list_dir(params: Value) -> Result<Value> {
 }
 
 pub async fn search_files(params: Value) -> Result<Value> {
-    let pattern = params.get("pattern").and_then(|v| v.as_str())
+    let pattern = params
+        .get("pattern")
+        .and_then(|v| v.as_str())
         .ok_or_else(|| anyhow!("Missing 'pattern'"))?;
     let matches: Vec<String> = glob::glob(pattern)?
         .filter_map(|p| p.ok())
@@ -67,7 +90,9 @@ pub async fn search_files(params: Value) -> Result<Value> {
 }
 
 pub async fn file_exists(params: Value) -> Result<Value> {
-    let path = params.get("path").and_then(|v| v.as_str())
+    let path = params
+        .get("path")
+        .and_then(|v| v.as_str())
         .ok_or_else(|| anyhow!("Missing 'path'"))?;
     Ok(json!(Path::new(path).exists()))
 }

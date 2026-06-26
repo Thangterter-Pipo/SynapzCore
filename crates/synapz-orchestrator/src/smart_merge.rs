@@ -17,9 +17,16 @@ use std::collections::HashSet;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CodeMergeEntry {
     /// Chỉ 1 agent ghi path này → lấy thẳng.
-    Clean { path: String, content: String, agent: String },
+    Clean {
+        path: String,
+        content: String,
+        agent: String,
+    },
     /// Nhiều agent ghi cùng path → xung đột, liệt kê các phiên bản.
-    Conflict { path: String, versions: Vec<(String, String)> }, // (agent, content)
+    Conflict {
+        path: String,
+        versions: Vec<(String, String)>,
+    }, // (agent, content)
 }
 
 impl CodeMergeEntry {
@@ -69,13 +76,21 @@ pub fn merge_code(buffer: &WorkBuffer) -> CodeMergeReport {
     for (path, mut versions) in by_path {
         if versions.len() == 1 {
             let (agent, content) = versions.pop().unwrap();
-            entries.push(CodeMergeEntry::Clean { path, content, agent });
+            entries.push(CodeMergeEntry::Clean {
+                path,
+                content,
+                agent,
+            });
         } else {
             // Nhiều phiên bản — nếu nội dung GIỐNG HỆT nhau thì không phải conflict.
             let first = &versions[0].1;
             if versions.iter().all(|(_, c)| c == first) {
                 let (agent, content) = versions.remove(0);
-                entries.push(CodeMergeEntry::Clean { path, content, agent });
+                entries.push(CodeMergeEntry::Clean {
+                    path,
+                    content,
+                    agent,
+                });
             } else {
                 entries.push(CodeMergeEntry::Conflict { path, versions });
             }
@@ -88,7 +103,10 @@ pub fn merge_code(buffer: &WorkBuffer) -> CodeMergeReport {
 
 /// Chuẩn hóa một record để so sánh dedupe: trim, gộp whitespace, lowercase.
 fn normalize_key(s: &str) -> String {
-    s.split_whitespace().collect::<Vec<_>>().join(" ").to_lowercase()
+    s.split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ")
+        .to_lowercase()
 }
 
 /// Kết quả dedupe dữ liệu.
@@ -198,9 +216,24 @@ mod tests {
     fn test_dedupe_data_records() {
         let mut buf = WorkBuffer::new();
         // 3 record, 2 trùng (sau normalize whitespace/case).
-        buf.stage(Artifact::new("t1", "a1", ArtifactKind::DataRecord, "Hello  World"));
-        buf.stage(Artifact::new("t2", "a2", ArtifactKind::DataRecord, "hello world"));
-        buf.stage(Artifact::new("t3", "a3", ArtifactKind::DataRecord, "Khác biệt"));
+        buf.stage(Artifact::new(
+            "t1",
+            "a1",
+            ArtifactKind::DataRecord,
+            "Hello  World",
+        ));
+        buf.stage(Artifact::new(
+            "t2",
+            "a2",
+            ArtifactKind::DataRecord,
+            "hello world",
+        ));
+        buf.stage(Artifact::new(
+            "t3",
+            "a3",
+            ArtifactKind::DataRecord,
+            "Khác biệt",
+        ));
         let rep = dedupe_data(&buf);
         assert_eq!(rep.total_input, 3);
         assert_eq!(rep.unique_count(), 2);

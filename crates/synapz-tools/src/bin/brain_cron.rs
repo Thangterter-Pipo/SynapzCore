@@ -7,9 +7,31 @@
 //!   brain-cron --interval 6        # Custom interval in hours (default: 12)
 //!   brain-cron --health-only       # Only run health checks
 
-use clap::Parser;
-use chrono::Local;
 use anyhow::Result;
+use chrono::Local;
+use clap::Parser;
+
+/// Resolve the SynapzCore root portably: SYNAPZ_ROOT env -> infer from exe location
+/// (target/<profile>/ -> repo root if it looks like the repo) -> current dir.
+fn synapz_root() -> String {
+    if let Ok(r) = std::env::var("SYNAPZ_ROOT")
+        && !r.is_empty()
+    {
+        return r;
+    }
+    if let Ok(exe) = std::env::current_exe()
+        && let Some(root) = exe
+            .parent()
+            .and_then(|p| p.parent())
+            .and_then(|p| p.parent())
+        && (root.join("Cargo.toml").exists() || root.join("crates").exists())
+    {
+        return root.to_string_lossy().into_owned();
+    }
+    std::env::current_dir()
+        .map(|p| p.to_string_lossy().into_owned())
+        .unwrap_or_else(|_| ".".to_string())
+}
 
 #[derive(Parser, Debug)]
 #[command(name = "brain-cron", about = "🧠 SynapzCore — Autonomous Scheduler")]
@@ -28,7 +50,7 @@ struct Args {
 }
 
 fn get_config_path() -> String {
-    let base = std::env::var("SYNAPZ_ROOT").unwrap_or_else(|_| "E:\\AGT_Brain".to_string());
+    let base = synapz_root();
     format!("{base}\\data\\supabase_config.json")
 }
 
@@ -62,21 +84,27 @@ async fn run_daily_reflection() -> String {
     }
 
     // Top importance memories
-    let mut top: Vec<_> = recent.iter()
-        .filter(|m| m.importance >= 4)
-        .collect();
+    let mut top: Vec<_> = recent.iter().filter(|m| m.importance >= 4).collect();
     top.sort_by(|a, b| b.importance.cmp(&a.importance));
-    let top_items: Vec<String> = top.iter().take(5)
-        .map(|m| format!("  [imp:{}] {}: {}", m.importance, m.agent, 
-            if m.content.len() > 80 { &m.content[..80] } else { &m.content }))
+    let top_items: Vec<String> = top
+        .iter()
+        .take(5)
+        .map(|m| {
+            format!(
+                "  [imp:{}] {}: {}",
+                m.importance,
+                m.agent,
+                truncate_chars(&m.content, 80)
+            )
+        })
         .collect();
 
     // Decisions today
-    let decisions_dir = std::env::var("SYNAPZ_ROOT")
-        .unwrap_or_else(|_| "E:\\AGT_Brain".to_string());
+    let decisions_dir = synapz_root();
     let decisions_path = format!("{decisions_dir}/memory/decisions");
     let today_decisions: Vec<String> = if let Ok(entries) = std::fs::read_dir(&decisions_path) {
-        entries.filter_map(|e| e.ok())
+        entries
+            .filter_map(|e| e.ok())
             .filter(|e| e.file_name().to_string_lossy().starts_with(&today))
             .map(|e| format!("  📋 {}", e.file_name().to_string_lossy()))
             .collect()
@@ -101,10 +129,20 @@ async fn run_daily_reflection() -> String {
          📋 Decisions:\n{}\n\
          \n\
          💡 Auto-insight: System is {} with {} memories and {} decisions today.",
-        recent.len(), top.len(), today_decisions.len(),
+        recent.len(),
+        top.len(),
+        today_decisions.len(),
         if supabase_ok { "✅" } else { "❌" },
-        if top_items.is_empty() { "  (none)".to_string() } else { top_items.join("\n") },
-        if today_decisions.is_empty() { "  (none today)".to_string() } else { today_decisions.join("\n") },
+        if top_items.is_empty() {
+            "  (none)".to_string()
+        } else {
+            top_items.join("\n")
+        },
+        if today_decisions.is_empty() {
+            "  (none today)".to_string()
+        } else {
+            today_decisions.join("\n")
+        },
         if supabase_ok { "healthy" } else { "degraded" },
         recent.len(),
         today_decisions.len(),
@@ -118,9 +156,18 @@ async fn run_daily_reflection() -> String {
         "stats": { "total": recent.len(), "antigravity": ag }
     });
 
-    if let Err(e) = mem.remember_as(
-        &reflection, "Antigravity", "antigravity", "reflection", 4, 5, &metadata
-    ).await {
+    if let Err(e) = mem
+        .remember_as(
+            &reflection,
+            "Antigravity",
+            "antigravity",
+            "reflection",
+            4,
+            5,
+            &metadata,
+        )
+        .await
+    {
         eprintln!("⚠️ Failed to save reflection: {e}");
     }
 
@@ -128,7 +175,7 @@ async fn run_daily_reflection() -> String {
 }
 
 async fn run_dream_compression() -> Result<()> {
-    let base_dir = std::env::var("SYNAPZ_ROOT").unwrap_or_else(|_| "E:\\AGT_Brain".to_string());
+    let base_dir = synapz_root();
     let script_path = format!("{base_dir}\\scripts\\synapz_memory.py");
 
     println!("💤 [Dreaming] Calling Python unified memory engine to run dreaming...");
@@ -161,19 +208,23 @@ async fn main() {
     }
 
     if args.daemon {
-        let base_dir = std::env::var("SYNAPZ_ROOT").unwrap_or_else(|_| "E:\\AGT_Brain".to_string());
+        let base_dir = synapz_root();
         let watcher_path = format!("{base_dir}\\scripts\\folder_watcher.py");
 
         println!("🚀 Starting folder watcher in background...");
         match std::process::Command::new("python")
             .arg(&watcher_path)
-            .spawn() {
+            .spawn()
+        {
             Ok(_) => println!("✅ Folder watcher launched successfully."),
             Err(e) => eprintln!("⚠️ Failed to launch folder watcher: {e}"),
         }
 
         let interval = std::time::Duration::from_secs(args.interval * 3600);
-        println!("🧠 brain-cron daemon started — interval: {}h", args.interval);
+        println!(
+            "🧠 brain-cron daemon started — interval: {}h",
+            args.interval
+        );
         println!("   Press Ctrl+C to stop.\n");
 
         loop {
@@ -201,11 +252,21 @@ async fn main() {
         }
 
         println!("🔄 Running one-shot SQLite Graph Sync...");
-        let base_dir = std::env::var("SYNAPZ_ROOT").unwrap_or_else(|_| "E:\\AGT_Brain".to_string());
+        let base_dir = synapz_root();
         let script_path = format!("{base_dir}\\scripts\\synapz_memory.py");
         let _ = std::process::Command::new("python")
             .arg(&script_path)
             .arg("--sync-graph")
             .status();
+    }
+}
+
+/// Truncate to at most max chars (not bytes) — UTF-8 safe; appends … if cut.
+fn truncate_chars(s: &str, max: usize) -> String {
+    if s.chars().count() <= max {
+        s.to_string()
+    } else {
+        let head: String = s.chars().take(max).collect();
+        format!("{head}…")
     }
 }

@@ -61,7 +61,11 @@ impl std::fmt::Display for GraphError {
                 write!(f, "Phát hiện chu trình phụ thuộc giữa: {}", ids.join(" → "))
             }
             GraphError::UnknownDependency { task, missing } => {
-                write!(f, "Task '{}' phụ thuộc vào '{}' không tồn tại", task, missing)
+                write!(
+                    f,
+                    "Task '{}' phụ thuộc vào '{}' không tồn tại",
+                    task, missing
+                )
             }
             GraphError::DuplicateId(id) => write!(f, "Trùng task id: '{}'", id),
         }
@@ -127,7 +131,10 @@ impl TaskGraph {
         for n in &self.nodes {
             for dep in &n.depends_on {
                 *indegree.get_mut(n.id.as_str()).unwrap() += 1;
-                children.entry(dep.as_str()).or_default().push(n.id.as_str());
+                children
+                    .entry(dep.as_str())
+                    .or_default()
+                    .push(n.id.as_str());
             }
         }
 
@@ -204,10 +211,7 @@ mod tests {
         let mut g = TaskGraph::new();
         g.add(TaskNode::new("api-login", "code API login").with_role(AgentRole::Coder));
         g.add(TaskNode::new("ui-frontend", "design UI").with_role(AgentRole::Coder));
-        g.add(
-            TaskNode::new("integration", "ghép FE+BE")
-                .depends_on(&["api-login", "ui-frontend"]),
-        );
+        g.add(TaskNode::new("integration", "ghép FE+BE").depends_on(&["api-login", "ui-frontend"]));
 
         g.validate().expect("graph hợp lệ");
         let layers = g.layers().unwrap();

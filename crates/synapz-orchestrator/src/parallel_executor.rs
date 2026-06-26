@@ -8,12 +8,15 @@
 //! Mỗi task được thực thi bởi một executor closure (inject vào) — tách rời khỏi
 //! cách gọi CLI thật để dễ test (test dùng echo executor, production dùng CliInvocation).
 
-use crate::task_graph::TaskGraph;
+use crate::task_graph::{TaskGraph, TaskNode};
 use std::collections::HashMap;
 use std::future::Future;
 use std::pin::Pin;
 use std::sync::Arc;
 use std::time::Duration;
+
+/// Trần ký tự output mỗi dependency được bơm vào prompt downstream (chống phình context).
+const MAX_DEP_CHARS: usize = 6000;
 
 /// Kết quả thực thi một task.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -47,7 +50,10 @@ pub struct RunReport {
 
 impl RunReport {
     pub fn succeeded(&self) -> usize {
-        self.results.iter().filter(|r| r.outcome.is_success()).count()
+        self.results
+            .iter()
+            .filter(|r| r.outcome.is_success())
+            .count()
     }
     pub fn failed(&self) -> usize {
         self.results
@@ -110,10 +116,17 @@ impl ParallelExecutor {
 
         // Semaphore giới hạn concurrency toàn cục (None = không giới hạn).
         let sem = if self.max_concurrent > 0 {
-            Some(std::sync::Arc::new(tokio::sync::Semaphore::new(self.max_concurrent)))
+            Some(std::sync::Arc::new(tokio::sync::Semaphore::new(
+                self.max_concurrent,
+            )))
         } else {
             None
         };
+
+        // LUỒNG DỮ LIỆU THEO CẠNH: map task_id → output (chỉ task Success).
+        // Trước khi chạy một task, output của các `depends_on` được bơm vào prompt
+        // → biến DAG từ "chỉ điều khiển thứ tự" thành "điều phối có dòng chảy dữ liệu".
+        let mut outputs: HashMap<String, String> = HashMap::new();
 
         for (layer_idx, layer) in layers.iter().enumerate() {
             // FAN-OUT: spawn mọi task trong tầng đồng thời.
@@ -122,7 +135,8 @@ impl ParallelExecutor {
                 let exec = self.executor.clone();
                 let timeout = self.task_timeout;
                 let task_id = node.id.clone();
-                let prompt = node.prompt.clone();
+                // Bơm output các dependency (đã xong ở tầng trước) vào prompt.
+                let prompt = compose_prompt(node, &outputs);
                 let sem = sem.clone();
 
                 handles.push(tokio::spawn(async move {
@@ -164,6 +178,13 @@ impl ParallelExecutor {
                 }
             }
 
+            // Ghi output thành công của tầng này vào map để tầng kế dùng làm context.
+            for r in report.results.iter().filter(|r| r.layer == layer_idx) {
+                if let TaskOutcome::Success(out) = &r.outcome {
+                    outputs.insert(r.task_id.clone(), out.clone());
+                }
+            }
+
             // Tầng này có hỏng không?
             let layer_failed = report
                 .results
@@ -191,7 +212,41 @@ pub fn echo_executor() -> Executor {
     })
 }
 
-/// Executor THẬT: gọi một AI CLI agent (qua CliInvocation) cho mọi task.
+/// Ghép output các dependency vào prompt của task để truyền dữ liệu theo cạnh DAG.
+/// Task không có dependency (hoặc dep chưa có output) → trả prompt gốc nguyên vẹn.
+fn compose_prompt(node: &TaskNode, outputs: &HashMap<String, String>) -> String {
+    let deps: Vec<(&String, &String)> = node
+        .depends_on
+        .iter()
+        .filter_map(|d| outputs.get(d).map(|o| (d, o)))
+        .collect();
+    if deps.is_empty() {
+        return node.prompt.clone();
+    }
+    let mut s = node.prompt.clone();
+    s.push_str("\n\n## Kết quả từ các bước phụ thuộc (dùng làm ngữ cảnh):");
+    for (id, out) in deps {
+        s.push_str(&format!(
+            "\n\n### [{}]\n{}",
+            id,
+            truncate_chars(out, MAX_DEP_CHARS)
+        ));
+    }
+    s
+}
+
+/// Cắt chuỗi theo SỐ KÝ TỰ (an toàn UTF-8, không cắt giữa ký tự tiếng Việt).
+fn truncate_chars(s: &str, max_chars: usize) -> String {
+    if s.chars().count() <= max_chars {
+        return s.to_string();
+    }
+    let head: String = s.chars().take(max_chars).collect();
+    format!(
+        "{head}…(đã cắt bớt {} ký tự)",
+        s.chars().count() - max_chars
+    )
+}
+
 /// Dùng khi muốn cả đồ thị chạy trên 1 loại agent. Timeout do ParallelExecutor lo,
 /// nên ở đây truyền timeout lớn để CliInvocation không cắt sớm hơn barrier.
 pub fn cli_executor(inv: crate::runner::CliInvocation) -> Executor {
@@ -220,7 +275,7 @@ pub fn role_routed_executor(
             let inv = role_of
                 .get(&task_id)
                 .and_then(|r| routing.get(r))
-                .map(|i| i.clone())
+                .cloned()
                 .unwrap_or_else(|| (*fallback).clone());
             inv.run(&prompt, 600).await
         })
@@ -229,7 +284,9 @@ pub fn role_routed_executor(
 
 /// Xây map task_id → role-name từ TaskGraph (cho role_routed_executor).
 /// Task không khai báo role → bỏ qua (sẽ dùng fallback).
-pub fn build_role_of(graph: &crate::task_graph::TaskGraph) -> std::collections::HashMap<String, String> {
+pub fn build_role_of(
+    graph: &crate::task_graph::TaskGraph,
+) -> std::collections::HashMap<String, String> {
     graph
         .nodes
         .iter()
@@ -238,8 +295,9 @@ pub fn build_role_of(graph: &crate::task_graph::TaskGraph) -> std::collections::
 }
 
 /// Bảng routing role → CLI mặc định cho hệ thống này (verify thật qua 9router).
-/// Coder → Claude Code (code mạnh); Tester → OpenAI Codex (test/exec);
-/// Researcher → Hermes (tra cứu). Role khác → None (caller tự lo fallback).
+/// Coder → Claude Code (code mạnh); Builder → pipo-hermes (dựng/triển khai dự án);
+/// Tester → OpenAI Codex (test/exec); Researcher → Hermes (tra cứu).
+/// Role khác → None (caller tự lo fallback).
 pub fn default_role_routing() -> std::collections::HashMap<String, crate::runner::CliInvocation> {
     let mut m = std::collections::HashMap::new();
     if let Some(inv) = crate::runner::invocation_for("Claude Code") {
@@ -248,7 +306,9 @@ pub fn default_role_routing() -> std::collections::HashMap<String, crate::runner
     if let Some(inv) = crate::runner::invocation_for("OpenAI Codex CLI") {
         m.insert("Tester".to_string(), inv);
     }
+    // pipo-hermes — builder chính thức: nội ứng (Rust orchestrator) ↔ ngoại hợp (CLI Hermes).
     if let Some(inv) = crate::runner::invocation_for("Hermes Agent") {
+        m.insert("Builder".to_string(), inv.clone());
         m.insert("Researcher".to_string(), inv);
     }
     m
@@ -314,7 +374,11 @@ mod tests {
 
         assert_eq!(report.succeeded(), 2);
         // Song song: ~100ms, KHÔNG phải 200ms. Cho biên 80ms.
-        assert!(elapsed < 180, "kỳ vọng chạy song song <180ms, thực {}ms", elapsed);
+        assert!(
+            elapsed < 180,
+            "kỳ vọng chạy song song <180ms, thực {}ms",
+            elapsed
+        );
     }
 
     #[tokio::test]
@@ -339,8 +403,16 @@ mod tests {
 
         assert_eq!(report.succeeded(), 4);
         // 4 task / 2 đồng thời = 2 đợt × 100ms = ~200ms+. Nếu không giới hạn sẽ ~100ms.
-        assert!(elapsed >= 190, "kỳ vọng >=190ms (2 đợt), thực {}ms", elapsed);
-        assert!(elapsed < 350, "kỳ vọng <350ms (không tuần tự hết), thực {}ms", elapsed);
+        assert!(
+            elapsed >= 190,
+            "kỳ vọng >=190ms (2 đợt), thực {}ms",
+            elapsed
+        );
+        assert!(
+            elapsed < 350,
+            "kỳ vọng <350ms (không tuần tự hết), thực {}ms",
+            elapsed
+        );
     }
 
     #[tokio::test]
@@ -362,6 +434,84 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_dependency_output_flows_to_downstream() {
+        use tokio::sync::Mutex;
+        // Executor ghi lại prompt MÀ NÓ NHẬN, trả output có dấu nhận biết.
+        let seen: Arc<Mutex<std::collections::HashMap<String, String>>> =
+            Arc::new(Mutex::new(std::collections::HashMap::new()));
+        let seen2 = seen.clone();
+        let exec: Executor = Arc::new(move |id: String, prompt: String| {
+            let seen = seen2.clone();
+            Box::pin(async move {
+                seen.lock().await.insert(id.clone(), prompt);
+                Ok(format!("OUTPUT_OF_{}", id))
+            })
+        });
+
+        let pe = ParallelExecutor::new(exec, 30);
+        let report = pe.run(&website_graph(), false).await.unwrap();
+        assert_eq!(report.succeeded(), 3);
+
+        let seen = seen.lock().await;
+        // integration (tầng 1) PHẢI nhận output của cả 2 dependency tầng 0.
+        let integ = seen.get("integration").unwrap();
+        assert!(
+            integ.contains("OUTPUT_OF_api-login"),
+            "thiếu output api-login: {integ}"
+        );
+        assert!(
+            integ.contains("OUTPUT_OF_ui-frontend"),
+            "thiếu output ui-frontend: {integ}"
+        );
+        assert!(integ.contains("Kết quả từ các bước phụ thuộc"));
+
+        // Task tầng 0 (không dep) KHÔNG bị chèn context thừa — prompt giữ nguyên.
+        let login = seen.get("api-login").unwrap();
+        assert_eq!(login, "code API login");
+    }
+
+    #[tokio::test]
+    async fn test_no_deps_prompt_unchanged() {
+        use tokio::sync::Mutex;
+        let seen: Arc<Mutex<std::collections::HashMap<String, String>>> =
+            Arc::new(Mutex::new(std::collections::HashMap::new()));
+        let seen2 = seen.clone();
+        let exec: Executor = Arc::new(move |id: String, prompt: String| {
+            let seen = seen2.clone();
+            Box::pin(async move {
+                seen.lock().await.insert(id, prompt);
+                Ok("ok".to_string())
+            })
+        });
+        let mut g = TaskGraph::new();
+        g.add(TaskNode::new("solo", "làm việc một mình"));
+        let pe = ParallelExecutor::new(exec, 30);
+        pe.run(&g, false).await.unwrap();
+        assert_eq!(seen.lock().await.get("solo").unwrap(), "làm việc một mình");
+    }
+
+    #[test]
+    fn test_builder_role_routes_to_hermes() {
+        // pipo-hermes là builder chính thức: Builder → hermes.
+        let routing = default_role_routing();
+        let builder = routing.get("Builder").expect("phải có route cho Builder");
+        assert_eq!(builder.program, "hermes", "Builder phải route tới hermes");
+        // Coder vẫn là Claude (không bị đụng).
+        assert_eq!(routing.get("Coder").unwrap().program, "claude");
+    }
+
+    #[test]
+    fn test_build_role_of_maps_builder_task() {
+        use crate::roles::AgentRole;
+        let mut g = TaskGraph::new();
+        g.add(TaskNode::new("scaffold", "dựng khung dự án").with_role(AgentRole::Builder));
+        g.add(TaskNode::new("plan", "lên kế hoạch")); // không role
+        let role_of = build_role_of(&g);
+        assert_eq!(role_of.get("scaffold").map(|s| s.as_str()), Some("Builder"));
+        assert!(!role_of.contains_key("plan")); // task không role → fallback
+    }
+
+    #[tokio::test]
     async fn test_stop_on_failure_skips_dependent_layer() {
         // Tầng 0 fail → tầng 1 (integration) KHÔNG chạy khi stop_on_failure=true.
         let exec: Executor = Arc::new(|id: String, _p: String| {
@@ -375,7 +525,6 @@ mod tests {
         });
         let pe = ParallelExecutor::new(exec, 30);
         let report = pe.run(&website_graph(), true).await.unwrap();
-        // integration không được chạy.
         assert!(report.get("integration").is_none());
         assert!(report.has_failures());
     }

@@ -1,7 +1,7 @@
 # SynapzCore — Project Guide (CLAUDE.md)
 
 > Bộ não của AI coding assistant **Antigravity**. Rust workspace (edition 2024, resolver 2).
-> GitHub: `Thang23022005/SynapzCore` · Root: `E:\AGT_Brain` · Build: `cargo build`
+> GitHub: `Thangterter-Pipo/SynapzCore` · Root: `E:\AGT_Brain` · Build: `cargo build`
 
 ## Mục đích
 Memory + Tools + MCP Server + Subagent integrations để Antigravity tự nhớ, tự phản tỉnh, tự điều khiển IDE.
@@ -31,7 +31,7 @@ E:\AGT_Brain\
 | `synapz-memory` | Cloud/local memory | `lib.rs`, `supabase.rs`, `queue.rs` |
 | `synapz-tools` | Toolset cho agent | `file.rs`, `shell.rs`, `web.rs`, `memory.rs`, `goals.rs`, `reflection.rs`, `cdp_controller.rs` |
 | `synapz-mcp` | MCP server (stdio) | `main.rs` |
-| `synapz-orchestrator` | Local multi-agent điều phối (Tokio) | `main.rs`, `task_graph.rs`, `pipeline.rs`, `parallel_executor.rs`, `git_isolation.rs`, `smart_merge.rs` |
+| `synapz-orchestrator` | Local multi-agent điều phối (Tokio) | `main.rs`, `task_graph.rs`, `pipeline.rs`, `parallel_executor.rs`, `planner.rs`, `git_isolation.rs`, `smart_merge.rs` |
 
 Binary phụ: `synapz-tools/src/bin/brain_cron.rs` — autonomous scheduler.
 

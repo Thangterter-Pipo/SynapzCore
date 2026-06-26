@@ -39,6 +39,14 @@ MAX_MESSAGES = 200
 # Max completed tasks kept.
 MAX_COMPLETED_TASKS = 50
 
+# ROLE LOCKS — ép vai trò cố định theo agent_id, BẤT KỂ agent tự khai gì khi heartbeat.
+# Đảm bảo mô hình điều phối ổn định: đúng MỘT orchestrator (Kiro IDE), pipo-hermes là builder.
+# Tránh tình trạng agent heartbeat lại role cũ làm lật vai trò (orchestrator/builder).
+ROLE_LOCKS = {
+    "kiro-ide": "orchestrator",
+    "pipo-hermes": "builder",
+}
+
 _lock = threading.Lock()
 
 # ─────────────────────────────────────────────
@@ -152,7 +160,26 @@ class Coordinator:
         tmp = self.state_path + ".tmp"
         with open(tmp, "w", encoding="utf-8") as f:
             json.dump(state, f, indent=2, ensure_ascii=False)
-        os.replace(tmp, self.state_path)  # atomic on same filesystem
+        # os.replace có thể ném PermissionError (WinError 5) trên Windows khi state.json
+        # đang bị một reader khác mở (SSE/poll đọc đồng thời). Retry ngắn để không rớt ghi.
+        last_err = None
+        for attempt in range(8):
+            try:
+                os.replace(tmp, self.state_path)  # atomic on same filesystem
+                return
+            except PermissionError as e:
+                last_err = e
+                time.sleep(0.03 * (attempt + 1))
+        # Cố gắng cuối: ghi trực tiếp (mất tính atomic nhưng tránh mất dữ liệu).
+        try:
+            with open(self.state_path, "w", encoding="utf-8") as f:
+                json.dump(state, f, indent=2, ensure_ascii=False)
+            try:
+                os.remove(tmp)
+            except OSError:
+                pass
+        except Exception:
+            raise last_err
 
     def _now_iso(self):
         return datetime.now(timezone.utc).isoformat(timespec="seconds")
@@ -166,6 +193,9 @@ class Coordinator:
                   status: str = "active", capabilities: list = None,
                   current_task: str = None, parent_id: str = None) -> dict:
         """Register or update agent presence. Call every 30-60s."""
+        # ROLE LOCK: ép vai trò cố định nếu agent_id nằm trong ROLE_LOCKS (single-orchestrator).
+        if agent_id in ROLE_LOCKS:
+            role = ROLE_LOCKS[agent_id]
         with _lock:
             state = self._read_state()
             now = self._now_iso()
@@ -403,10 +433,12 @@ class Coordinator:
     # ─── Inter-Agent Messaging ────────────────────────────────────
 
     def send_message(self, from_agent: str, content: str,
-                     to_agent: str = None, msg_type: str = "info") -> dict:
+                     to_agent: str = None, msg_type: str = "info",
+                     images: list = None) -> dict:
         """
         Send a message to a specific agent or broadcast (to_agent=None).
         msg_type: info, warning, request, response, file_conflict
+        images: optional list of image URLs (served from disk) to attach.
         """
         msg = {
             "id": f"msg-{int(time.time()*1000)}",
@@ -414,6 +446,7 @@ class Coordinator:
             "to": to_agent,  # None = broadcast
             "type": msg_type,
             "content": content,
+            "images": [u for u in (images or []) if isinstance(u, str) and u],
             "created_at": self._now_iso(),
             "read_by": [],
         }
