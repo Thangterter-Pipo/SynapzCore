@@ -5652,7 +5652,7 @@
             const stage = document.getElementById('constellation');
             if (!wrap || !stage) return;
             const W = stage.clientWidth, H = stage.clientHeight;
-            const cx = W / 2, cy = H / 2;   // tâm orchestrator — chính giữa
+            const cx = W / 2, cy = H * 0.42; // tâm orchestrator — khớp CSS .cst-core { top: 42% }
 
             // Lọc bỏ agent stale quá 10 phút (e2e, test, agent đã thoát)
             const STALE_HIDE_MS = 10 * 60 * 1000;
