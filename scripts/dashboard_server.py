@@ -58,6 +58,9 @@ COORD = None  # initialized in main() after chdir
 # Uploaded images are NOT in the IDE transcript, so we persist them ourselves and
 # map each batch to the prompt it was sent with. On history rebuild we re-attach.
 _SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+# Telegram bridge lives in a separate repo now. Point TELEGRAM_BRIDGE_DIR at the
+# checkout to enable it; unset → bridge is skipped (no hardcoded machine path).
+TELEGRAM_BRIDGE_DIR = os.environ.get("TELEGRAM_BRIDGE_DIR", "").strip()
 ATTACH_DIR = os.path.join(_SCRIPT_DIR, ".attachments")
 ATTACH_LOG = os.path.join(ATTACH_DIR, "attachments_log.json")
 _pending_attachments = []          # abs paths saved by /upload, awaiting next /chat
@@ -1534,6 +1537,18 @@ class CustomHandler(SimpleHTTPRequestHandler):
         if not self._check_auth():
             return
         parsed_path = urllib.parse.urlparse(self.path)
+        # miniapp.html lives in the external telegram-bridge repo now; serve it from there.
+        if parsed_path.path == "/scripts/miniapp.html" and TELEGRAM_BRIDGE_DIR:
+            mini = os.path.join(TELEGRAM_BRIDGE_DIR, "miniapp.html")
+            if os.path.isfile(mini):
+                with open(mini, "rb") as f:
+                    body = f.read()
+                self.send_response(200)
+                self.send_header("Content-Type", "text/html; charset=utf-8")
+                self.send_header("Content-Length", str(len(body)))
+                self.end_headers()
+                self.wfile.write(body)
+                return
         if parsed_path.path == "/api/ide/status":
             ws_url = discover_ws_url()
             self.send_response(200)
@@ -2573,18 +2588,25 @@ def main():
     print(f"📂 Repository root: {repo_root}")
     print("💡 Connecting to Antigravity IDE at debug port: 9333")
 
-    # ---- Telegram <-> Antigravity bridge (optional; reads telegram_bridge.json) ----
-    try:
-        import telegram_bridge
-        telegram_bridge.init(
-            inject_prompt=inject_prompt_via_cdp,
-            discover_ws=discover_ws_url,
-            get_history=get_conversation_history,
-        )
-        if telegram_bridge.start():
-            print("📲 Telegram bridge started (Antigravity <-> Telegram).")
-    except Exception as e:
-        print(f"⚠️ Telegram bridge not started: {e}")
+    # ---- Telegram <-> Antigravity bridge (optional, external repo) ----
+    # Enable by setting TELEGRAM_BRIDGE_DIR to a telegram-bridge checkout
+    # (github.com/Thangterter-Pipo/telegram-bridge). Unset → skipped.
+    if TELEGRAM_BRIDGE_DIR and os.path.isdir(TELEGRAM_BRIDGE_DIR):
+        try:
+            if TELEGRAM_BRIDGE_DIR not in sys.path:
+                sys.path.insert(0, TELEGRAM_BRIDGE_DIR)
+            import telegram_bridge
+            telegram_bridge.init(
+                inject_prompt=inject_prompt_via_cdp,
+                discover_ws=discover_ws_url,
+                get_history=get_conversation_history,
+            )
+            if telegram_bridge.start():
+                print("📲 Telegram bridge started (Antigravity <-> Telegram).")
+        except Exception as e:
+            print(f"⚠️ Telegram bridge not started: {e}")
+    else:
+        print("ℹ️ Telegram bridge skipped (set TELEGRAM_BRIDGE_DIR to enable).")
 
     try:
         server.serve_forever()
